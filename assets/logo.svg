@@ -47,22 +47,6 @@
         <path d="M216 100 H808 C 782 100 770 112 770 138 V462 C 770 544 708 600 628 600 H396 C 316 600 254 544 254 462 V138 C 254 112 242 100 216 100 Z" fill="url(#ink)"/>
       </g>
 
-      <!-- a window softly reflected in the island's glossy glass (the Windows nod) -->
-      <clipPath id="islandClip"><path d="M254 100 H770 V462 C 770 544 708 600 628 600 H396 C 316 600 254 544 254 462 Z"/></clipPath>
-      <linearGradient id="reflFade" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#fff" stop-opacity=".13"/>
-        <stop offset="1" stop-color="#fff" stop-opacity=".0"/>
-      </linearGradient>
-      <filter id="reflBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2"/></filter>
-      <g clip-path="url(#islandClip)" fill="url(#reflFade)" filter="url(#reflBlur)">
-        <g transform="translate(618 150) skewX(-10)">
-          <rect x="0" y="0" width="50" height="78" rx="9"/>
-          <rect x="58" y="0" width="50" height="78" rx="9"/>
-          <rect x="0" y="86" width="50" height="78" rx="9" opacity=".6"/>
-          <rect x="58" y="86" width="50" height="78" rx="9" opacity=".6"/>
-        </g>
-      </g>
-
       <!-- face -->
       <g fill="#fff8ea" filter="url(#warm)">
         <rect x="402" y="292" width="54" height="104" rx="27"/>
