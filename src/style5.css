@@ -1,0 +1,106 @@
+/* =====================================================================================
+   v5: iOS-style Home widgets + Clipboard history
+   ===================================================================================== */
+.homex { padding: 30px 12px 12px; }
+.wgrid {
+  display: grid;
+  grid-template-columns: 228px 1fr 1fr;
+  grid-template-rows: 138px 96px;
+  gap: 10px;
+}
+.w {
+  position: relative; overflow: hidden; border-radius: 20px; padding: 12px 13px;
+  background: linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.055));
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12);
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1), filter .2s;
+}
+.w[data-go]:hover { transform: scale(1.02); filter: brightness(1.07); }
+.w[data-go]:active { transform: scale(.98); }
+
+/* Now Playing: blurred cover fills the widget, sharp cover on top */
+.wmusic { grid-row: 1 / span 2; display: flex; flex-direction: column; padding: 14px; background: linear-gradient(160deg, var(--c2, #2c2c2e), var(--c1, #1c1c1e)); }
+.wmusic .bgart { position: absolute; inset: -30px; background: center/cover no-repeat; filter: blur(28px) saturate(1.6) brightness(.75); transform: scale(1.15); opacity: .9; transition: opacity .6s; }
+.wmusic .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05) 0%, rgba(0,0,0,.35) 55%, rgba(0,0,0,.55) 100%); }
+.wmusic > *:not(.bgart):not(.shade) { position: relative; }
+.wmusic .wtop { display: flex; align-items: flex-start; justify-content: space-between; }
+.wmusic .cov {
+  width: 78px; height: 78px; border-radius: 13px; background: #2c2c2e center/cover no-repeat;
+  box-shadow: 0 8px 22px rgba(0,0,0,.45), inset 0 0 0 .5px rgba(255,255,255,.15);
+  display: grid; place-items: center; color: #8e8e93; cursor: pointer;
+  transition: transform .45s cubic-bezier(.34,1.56,.64,1);
+}
+.wmusic.playing .cov { transform: scale(1.04); }
+.wmusic:not(.playing) .cov { transform: scale(.94); }
+.wmusic .src { opacity: .95; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+.wmusic .wti { margin-top: auto; font-size: 15px; font-weight: 700; letter-spacing: -.2px; text-shadow: 0 1px 3px rgba(0,0,0,.35); }
+.wmusic .war { font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,.75); margin-top: 1px; }
+.wmusic .wctl { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 0 6px; }
+.wmusic .wctl .icon-btn { width: 32px; height: 32px; color: #fff; }
+.wmusic .wctl .icon-btn.big { width: 40px; height: 40px; background: rgba(255,255,255,.16); }
+.wmusic .wpb { height: 3px; border-radius: 2px; background: rgba(255,255,255,.22); margin-top: 10px; overflow: hidden; }
+.wmusic .wpb i { display: block; height: 100%; background: #fff; border-radius: 2px; transition: width .3s linear; }
+
+/* Calendar widget */
+.wcal .dow { font-size: 10.5px; font-weight: 700; color: #ff453a; letter-spacing: .5px; }
+.wcal .dnum { font-size: 36px; font-weight: 300; line-height: 1; margin: 2px 0 8px; letter-spacing: -1px; }
+.wcal .nev { display: flex; gap: 7px; align-items: stretch; }
+.wcal .bar3 { width: 3px; border-radius: 2px; flex: none; }
+.wcal .et { font-size: 12px; font-weight: 700; max-width: 120px; }
+.wcal .es { font-size: 11px; color: #8e8e93; font-weight: 500; }
+
+/* Focus widget */
+.wfocus { display: flex; flex-direction: column; align-items: center; }
+.wfocus .flabel { align-self: flex-start; font-size: 11px; font-weight: 700; color: #bf5af2; letter-spacing: .3px; }
+.wfocus .fring { position: relative; width: 64px; height: 64px; margin-top: 4px; }
+.wfocus .fring svg { width: 100%; height: 100%; }
+.wfocus .fring circle:last-child { transition: stroke-dashoffset .9s linear; }
+.wfocus .ft { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; }
+.wfocus .fsub { margin-top: 6px; font-size: 11px; color: #8e8e93; }
+.wfocus .fgo { background: rgba(191,90,242,.22); color: #d9a6f7; font-size: 11px; padding: 3px 10px; display: inline-flex; gap: 4px; align-items: center; }
+
+/* Batteries widget */
+.wbat { grid-column: 2 / span 2; display: flex; align-items: center; padding: 10px 14px; }
+.bats { display: flex; gap: 14px; flex: 1; }
+.bat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bat .ring2 { position: relative; width: 46px; height: 46px; }
+.bat .ring2 svg { width: 100%; height: 100%; }
+.bat .ring2 .arc { transition: stroke-dashoffset 1.1s cubic-bezier(.22,1,.36,1); }
+.bat .ic { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; }
+.bat .bolt2 { position: absolute; right: -1px; top: -1px; width: 16px; height: 16px; border-radius: 50%; background: #30d158; color: #000; display: grid; place-items: center; box-shadow: 0 0 0 2px #1c1c1e; }
+.bat .pc { font-size: 11px; font-weight: 600; color: #d1d1d6; font-variant-numeric: tabular-nums; }
+.wmini { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; font-weight: 600; color: #aeaeb2; }
+.wmini span { display: inline-flex; gap: 5px; align-items: center; }
+
+/* ------------------------------------------------------------ clipboard */
+.clipp { padding: 30px 12px 12px; }
+.cliphead { display: flex; align-items: center; gap: 8px; padding: 0 4px 8px; }
+.cliphead .ttl { font-size: 13px; font-weight: 700; }
+.cliphead .cnt { font-size: 11px; font-weight: 700; color: #8e8e93; background: rgba(255,255,255,.08); padding: 1px 7px; border-radius: 99px; }
+.cliphead .clear { margin-left: auto; font-size: 11px; color: #ff453a; font-weight: 600; background: rgba(255,69,58,.15); padding: 2px 10px; border-radius: 99px; }
+.cliplist { max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
+.cliplist::-webkit-scrollbar { width: 4px; }
+.cliplist::-webkit-scrollbar-thumb { background: rgba(255,255,255,.15); border-radius: 2px; }
+.clip {
+  position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; cursor: pointer;
+  background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.08);
+  animation: cardIn .4s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i) * 28ms);
+  transition: background .2s, transform .2s, opacity .2s;
+}
+.clip:hover { background: rgba(255,255,255,.11); }
+.clip:active { transform: scale(.985); }
+.clip.gone { opacity: 0; transform: translateX(16px); }
+.clip.pinned { background: rgba(255,159,10,.10); box-shadow: inset 0 0 0 .5px rgba(255,159,10,.3); }
+.clip .cicon { width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,.1); display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #d1d1d6; flex: none; }
+.clip .cimg { width: 44px; height: 34px; border-radius: 6px; background: #222 center/cover; flex: none; }
+.clip .cmeta { flex: 1; min-width: 0; }
+.clip .ctext { font-size: 12.5px; font-weight: 500; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.clip .csub { font-size: 10.5px; color: #8e8e93; }
+.clip .ctime { font-size: 10.5px; color: #8e8e93; flex: none; }
+.clip .cpin, .clip .cdel { width: 22px; height: 22px; opacity: 0; transition: opacity .2s; color: #d1d1d6; flex: none; }
+.clip:hover .cpin, .clip:hover .cdel, .clip.pinned .cpin { opacity: 1; }
+.clip.pinned .cpin { color: #ff9f0a; }
+.clip .copied { position: absolute; inset: 0; border-radius: inherit; display: grid; place-items: center; font-size: 12.5px; font-weight: 700; color: #fff; background: rgba(48,209,88,.85); opacity: 0; pointer-events: none; }
+.clip.flash .copied { animation: copied .65s ease both; }
+@keyframes copied { 0% { opacity: 0; } 20% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
+.clipempty { text-align: center; color: #d1d1d6; font-size: 13px; font-weight: 600; padding: 18px 0 12px; }
+.clipempty small { display: block; color: #8e8e93; font-weight: 500; font-size: 11px; margin-top: 3px; }

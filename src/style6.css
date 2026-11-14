@@ -1,0 +1,42 @@
+/* =====================================================================================
+   v6: macOS traffic lights, Apple alert, brightness HUD
+   ===================================================================================== */
+
+/* traffic lights (symbols appear when you hover the group, like macOS) */
+.lights { display: flex; gap: 7px; align-items: center; flex: none; padding-right: 2px; }
+.tl {
+  width: 12px; height: 12px; border-radius: 50%; padding: 0; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 .5px rgba(0,0,0,.25);
+  transition: transform .2s cubic-bezier(.34,1.56,.64,1), filter .15s;
+}
+.tl svg { width: 8px; height: 8px; fill: none; stroke: rgba(0,0,0,.6); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity .15s; }
+.lights:hover .tl svg { opacity: 1; }
+.tl:active { transform: scale(.85); filter: brightness(.85); }
+.tl.red { background: #ff5f57; }
+.tl.yellow { background: #febc2e; }
+.tl.green { background: #28c840; }
+.tl.green.on { box-shadow: inset 0 0 0 .5px rgba(0,0,0,.25), 0 0 0 2px rgba(40,200,64,.35); }
+.tl.green.on svg { opacity: 1; }
+.lyrcard { position: relative; padding-top: 30px; }
+.lyrcard .lights { position: absolute; top: 11px; left: 15px; }
+.lyrcard .meta .lights { position: absolute; }
+
+/* Apple-style alert */
+.alert { padding: 22px 18px 16px; text-align: center; }
+.alert .aicon { display: grid; place-items: center; margin-bottom: 10px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)); animation: devPop .5s cubic-bezier(.34,1.56,.64,1) both; }
+.alert .aicon svg { border-radius: 10px; }
+.alert .atitle { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
+.alert .amsg { font-size: 12px; color: #aeaeb2; margin-top: 4px; line-height: 1.35; padding: 0 6px; }
+.alert .abtns { display: flex; gap: 8px; margin-top: 16px; }
+.alert .abtn {
+  flex: 1; height: 30px; border-radius: 9px; font-size: 13px; font-weight: 600;
+  background: rgba(255,255,255,.14); color: #fff; transition: filter .15s, transform .15s;
+}
+.alert .abtn:hover { filter: brightness(1.2); }
+.alert .abtn:active { transform: scale(.96); }
+.alert .abtn.destructive { background: #ff453a; }
+
+/* brightness / volume HUD */
+.vhud .ic { display: grid; color: #fff; transition: transform .25s ease; }
+.vhud .sun { color: #ffd60a; }
+.vhud.muted .fill { background: #8e8e93 !important; }

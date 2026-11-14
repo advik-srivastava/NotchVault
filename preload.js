@@ -1,0 +1,48 @@
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+const CHANNELS = ['bridge', 'calendar', 'demo', 'config', 'cursor', 'agent', 'toggle-expand', 'bt-list', 'calendar-status', 'section', 'clips'];
+
+contextBridge.exposeInMainWorld('islandAPI', {
+  setMouse: () => {},
+  setRect: (r) => ipcRenderer.send('island-rect', r),
+  holdMouse: (on) => ipcRenderer.send('hold-mouse', on),
+  focus: (want) => ipcRenderer.send('focus', want),
+  focusable: (on) => ipcRenderer.send('focusable', on),
+  diagPointer: (d) => ipcRenderer.send('diag-pointer', d),
+  bridge: (msg) => ipcRenderer.send('bridge', msg),
+  openUrl: (url) => ipcRenderer.send('open-url', url),
+  openCalendar: () => ipcRenderer.send('open-calendar'),
+  openSound: () => ipcRenderer.send('open-sound'),
+  openBattery: () => ipcRenderer.send('open-battery'),
+  openBluetooth: () => ipcRenderer.send('open-bluetooth'),
+  openSettings: (section) => ipcRenderer.send('open-settings', section),
+  openApp: (aumid) => ipcRenderer.send('open-app', aumid),
+  demo: (kind) => ipcRenderer.send('demo', kind),
+  glass: (on) => ipcRenderer.send('glass', on),
+  windowOrigin: () => ipcRenderer.invoke('window-origin'),
+  displayInfo: () => ipcRenderer.invoke('display-info'),
+  wallpaper: () => ipcRenderer.invoke('wallpaper'),
+  getConfig: () => ipcRenderer.invoke('get-config'),
+  setConfig: (patch) => ipcRenderer.invoke('set-config', patch),
+  getCalendar: () => ipcRenderer.invoke('get-calendar'),
+  calendarStatus: () => ipcRenderer.invoke('calendar-status'),
+  refreshCalendar: () => ipcRenderer.invoke('refresh-calendar'),
+  btList: () => ipcRenderer.invoke('bt-list'),
+  loginItem: (on) => ipcRenderer.invoke('login-item', on),
+  lyrics: (q) => ipcRenderer.invoke('lyrics', q),
+  agentIcon: (agent) => ipcRenderer.invoke('agent-icon', agent),
+  clipList: () => ipcRenderer.invoke('clip-list'),
+  clipCopy: (id) => ipcRenderer.invoke('clip-copy', id),
+  clipPin: (id) => ipcRenderer.invoke('clip-pin', id),
+  clipDelete: (id) => ipcRenderer.invoke('clip-delete', id),
+  clipClear: () => ipcRenderer.invoke('clip-clear'),
+  shelfList: () => ipcRenderer.invoke('shelf-list'),
+  shelfAdd: (paths) => ipcRenderer.invoke('shelf-add', paths),
+  shelfRemove: (p) => ipcRenderer.invoke('shelf-remove', p),
+  shelfOpen: (p) => ipcRenderer.send('shelf-open', p),
+  shelfDrag: (p) => ipcRenderer.send('shelf-drag', p),
+  filePath: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  on: (channel, fn) => {
+    if (CHANNELS.includes(channel)) ipcRenderer.on(channel, (_e, data) => fn(data));
+  },
+});

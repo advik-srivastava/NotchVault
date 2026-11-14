@@ -1,0 +1,72 @@
+/* =====================================================================================
+   v4: smoother morphs, lighter glass, contact photos, music-as-a-line, glow fade
+   ===================================================================================== */
+
+/* ---- calmer, cheaper content transitions (opacity/transform only, tiny blur) */
+.view.enter { animation: viewIn4 .42s cubic-bezier(.2,.9,.25,1) both; animation-delay: .04s; }
+.view.leave { animation: viewOut4 .16s ease-out both; pointer-events: none; }
+@keyframes viewIn4  { from { opacity: 0; filter: blur(4px); transform: translateX(-50%) translateY(-3px) scale(.985); } to { opacity: 1; filter: none; transform: translateX(-50%); } }
+@keyframes viewOut4 { to { opacity: 0; filter: blur(3px); transform: translateX(-50%) scale(.99); } }
+
+/* compact ⇄ hover in the same family: only fade, shared art/wave glide on their own (FLIP) */
+.view.enter-fade { animation: fadeIn4 .1s ease both; }
+.view.leave-fade { animation: fadeOut4 .14s ease-out both; pointer-events: none; }
+.view.enter-fade .marquee, .view.enter-fade .time, .view.enter-fade .bar, .view.enter-fade .icon-btn,
+.view.enter-fade .lyr-col, .view.enter-fade .t-title, .view.enter-fade .t-sub, .view.enter-fade .txt,
+.view.enter-fade .info, .view.enter-fade .st, .view.enter-fade .tm, .view.enter-fade .timer-row {
+  animation: fadeUp4 .42s cubic-bezier(.2,.9,.25,1) .12s both;
+}
+@keyframes fadeIn4 { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut4 { to { opacity: 0; } }
+@keyframes fadeUp4 { from { opacity: 0; transform: translateY(4px); filter: blur(3px); } to { opacity: 1; transform: none; filter: none; } }
+.view .flip { will-change: transform; }
+
+/* page ⇄ page: short glide, no heavy blur */
+/* the old page is gone (opacity) before the new one glides in, so they never overlap */
+.view.enter-r { animation: pageInR .46s cubic-bezier(.22,1,.36,1) .11s both; }
+.view.enter-l { animation: pageInL .46s cubic-bezier(.22,1,.36,1) .11s both; }
+.view.leave-l { animation: pageOutL .12s cubic-bezier(.4,0,1,1) both; pointer-events: none; }
+.view.leave-r { animation: pageOutR .12s cubic-bezier(.4,0,1,1) both; pointer-events: none; }
+@keyframes pageInR  { from { opacity: 0; transform: translateX(calc(-50% + 26px)); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes pageInL  { from { opacity: 0; transform: translateX(calc(-50% - 26px)); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes pageOutL { to { opacity: 0; transform: translateX(calc(-50% - 18px)); } }
+@keyframes pageOutR { to { opacity: 0; transform: translateX(calc(-50% + 18px)); } }
+
+/* ---- glass: only a small canvas behind the island is blurred */
+#glass-media { position: fixed; left: 0; top: 0; width: 2px; height: 2px; opacity: 0; overflow: hidden; pointer-events: none; }
+#glass-media video, #glass-media img { width: 2px !important; height: 2px !important; filter: none !important; }
+#glass-canvas {
+  position: absolute; left: -6%; top: -8%; width: 112%; height: 116%;
+  filter: blur(var(--g-blur, 10px)) saturate(var(--g-sat, 1.8)) brightness(.96);
+  transform: translateZ(0);
+}
+
+/* ---- plug / unplug light: own layer, opacity transition both ways */
+#glow {
+  position: absolute; inset: 0; pointer-events: none; z-index: -1;
+  border-radius: 0 0 var(--r, 10px) var(--r, 10px);
+  box-shadow: 0 0 0 1px rgba(var(--glow, 48,209,88), .5), 0 8px 30px rgba(var(--glow, 48,209,88), .5);
+  opacity: 0; transition: opacity 1.4s cubic-bezier(.4,0,.2,1);
+}
+#glow.on { opacity: 1; transition: opacity .5s ease-out; }
+#island.glow-green #shape, #island.glow-red #shape { box-shadow: 0 var(--sh-y, 0px) var(--sh-b, 0px) rgba(0,0,0,var(--sh-a, 0)); }
+
+/* ---- photos */
+.avatar.photo { background-size: cover; background-position: center; }
+.avatar.appicon { background-color: transparent; background-size: 100% 100%; border-radius: 12px; }
+
+/* ---- music: clickable art/title, tap feedback, mini × */
+.link { cursor: pointer; }
+.art.link:hover { filter: brightness(1.12); }
+.meta.link:hover .title { text-decoration: underline; text-decoration-color: rgba(255,255,255,.35); text-underline-offset: 3px; }
+.tap { animation: tap .32s cubic-bezier(.34,1.56,.64,1); }
+@keyframes tap { 0% { transform: scale(1); } 35% { transform: scale(.82); } 100% { transform: scale(1); } }
+.mini-x { width: 18px !important; height: 18px !important; flex: none; background: rgba(255,255,255,.12); color: #d1d1d6; margin-left: 2px; }
+.mini-x:hover { background: rgba(255,255,255,.22); }
+.lyrcard .meta .mini-x { margin-left: auto; align-self: flex-start; }
+
+#tabs .when { white-space: nowrap; }
+
+/* ---- home: keep titles clear of the play button */
+.cardx.music .big, .cardx.music .small { padding-right: 34px; }
+.cardx.focus .small { padding-right: 30px; }

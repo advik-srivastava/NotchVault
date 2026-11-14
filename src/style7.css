@@ -1,0 +1,61 @@
+/* =====================================================================================
+   v7: compact, Apple-style Home (smaller widgets, named Batteries list)
+   ===================================================================================== */
+.homex { padding: 30px 10px 10px; }
+.wgrid { grid-template-columns: 150px 1fr 1fr; grid-template-rows: 100px 92px; gap: 8px; }
+.w {
+  border-radius: 18px; padding: 10px 12px;
+  background: #1c1c1e;
+  box-shadow: inset 0 0 0 .5px rgba(255,255,255,.09);
+}
+.w[data-go]:hover { transform: scale(1.015); filter: brightness(1.1); }
+
+/* Now Playing */
+.wmusic { padding: 11px; }
+.wmusic .cov { width: 54px; height: 54px; border-radius: 10px; box-shadow: 0 6px 16px rgba(0,0,0,.45), inset 0 0 0 .5px rgba(255,255,255,.15); }
+.wmusic .src svg { width: 14px; height: 14px; }
+.wmusic .wti { font-size: 13px; letter-spacing: -.15px; }
+.wmusic .war { font-size: 11px; }
+.wmusic .wctl { margin-top: 6px; padding: 0 2px; }
+.wmusic .wctl .icon-btn { width: 26px; height: 26px; }
+.wmusic .wctl .icon-btn svg { width: 15px; height: 15px; }
+.wmusic .wctl .icon-btn.big { width: 32px; height: 32px; }
+.wmusic .wctl .icon-btn.big svg { width: 16px; height: 16px; }
+.wmusic .wpb { margin-top: 7px; height: 2.5px; }
+
+/* Calendar */
+.wcal .dow { font-size: 9.5px; }
+.wcal .dnum { font-size: 28px; margin: 1px 0 5px; }
+.wcal .et { font-size: 11px; max-width: 110px; }
+.wcal .es { font-size: 10px; }
+
+/* Focus */
+.wfocus .flabel { font-size: 10px; }
+.wfocus .fring { width: 48px; height: 48px; margin-top: 2px; }
+.wfocus .ft { font-size: 10.5px; }
+.wfocus .fsub { margin-top: 3px; font-size: 10px; }
+.wfocus .fgo { font-size: 10px; padding: 2px 8px; }
+
+/* Batteries: named list, two columns, like the iOS Batteries widget */
+.wbat { display: block; padding: 9px 12px; }
+.wbat .bhead { font-size: 10px; font-weight: 700; color: #30d158; letter-spacing: .3px; margin-bottom: 5px; }
+.bats { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }
+.bat { flex-direction: row; align-items: center; gap: 7px; min-width: 0; }
+.bat .ring2 { width: 26px; height: 26px; flex: none; }
+.bat .ic svg { width: 11px; height: 11px; }
+.bat .bname { flex: 1; min-width: 0; font-size: 11px; font-weight: 600; color: #f2f2f7; }
+.bat .pc { font-size: 10.5px; font-weight: 600; color: #8e8e93; display: inline-flex; align-items: center; gap: 2px; }
+.bat .bolt3 { color: #30d158; display: grid; }
+.bnone { font-size: 11px; color: #8e8e93; }
+
+/* lyrics on/off button */
+.lyrtog { color: #8e8e93; }
+.lyrtog.on { color: #fff; background: rgba(255,255,255,.16); }
+.lyrbtn.on { background: rgba(255,255,255,.14); }
+
+/* call view: open Phone Link's own call window */
+.callon .controls2 { align-items: center; }
+.callon .showwin { margin-right: auto; font-size: 11.5px; padding: 5px 11px; }
+
+/* traffic lights in the expanded Music player (top-left, like a Mac window) */
+.player .plights { display: flex; margin: 0 0 8px; }
