@@ -237,7 +237,7 @@ class Bluetooth:
             self.emit({"type": "bt-list", "data": self.connected_list()})
             return
         due = [t for t in getattr(self, "recheck", []) if t <= now]
-        if due or now - self.battery_at > 60:
+        if due or now - self.battery_at > 20:
             self.recheck = [t for t in getattr(self, "recheck", []) if t > now]
             before = self.connected_list()
             await self.refresh_battery()

@@ -1,8 +1,75 @@
 {
-  "name": "dynamic-island-windows",
+  "name": "notchvault",
+  "productName": "NotchVault",
   "version": "1.0.0",
-  "description": "Dynamic Island for Windows",
+  "description": "NotchVault — a Dynamic-Island-style live notch for Windows",
+  "author": "Crazified Studios",
+  "homepage": "https://crazifiedstudios.com",
   "main": "main.js",
-  "scripts": { "start": "electron ." },
-  "devDependencies": { "electron": "^33.2.0" }
+  "scripts": {
+    "start": "electron .",
+    "build:bridge": "cd bridge && python -m PyInstaller --noconfirm --onedir --console --name bridge --distpath ../build/pybridge --paths . --collect-submodules winrt --collect-all uiautomation --collect-submodules pycaw --collect-submodules comtypes --hidden-import calls --hidden-import radios --hidden-import brightness --hidden-import appvolume --hidden-import phonelink --hidden-import bt --hidden-import volume_events bridge.py",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.crazifiedstudios.notchvault",
+    "productName": "NotchVault",
+    "copyright": "Copyright © 2026 Crazified Studios",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "calendar.js",
+      "package.json",
+      "src/**/*",
+      "assets/logo.svg",
+      "assets/logo-win.svg",
+      "assets/*.png",
+      "assets/notchvault.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "build/pybridge/bridge",
+        "to": "bridge"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/notchvault.ico",
+      "executableName": "NotchVault"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "NotchVault",
+      "installerIcon": "assets/notchvault.ico",
+      "uninstallerIcon": "assets/notchvault.ico",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "NotchVault-Setup-${version}.${ext}",
+      "installerSidebar": "assets/installer/sidebar.bmp",
+      "uninstallerSidebar": "assets/installer/sidebar.bmp",
+      "installerHeader": "assets/installer/header.bmp",
+      "uninstallDisplayName": "NotchVault",
+      "include": "assets/installer/installer.nsh"
+    }
+  }
 }

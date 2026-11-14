@@ -1,95 +1,107 @@
-# Dynamic Island for Windows
+<div align="center">
 
-A black island that sits at the top centre of your screen and morphs, with Apple-style spring physics and blur transitions, to show:
+<img src="assets/github/social-preview-github.jpg" alt="NotchVault: the Dynamic Island, rebuilt for Windows" width="100%">
 
-| Activity | Compact | Hover | Click / event |
-|---|---|---|---|
-| **Music** (Spotify, Apple Music) | album art + live waveform tinted from the artwork | scrolling "Title - Artist" marquee | full player: seek, shuffle, prev/play/next, favourite; scroll for the volume slider |
-| **Notifications** (any app, live) | — | — | banner with sender, app badge and message; stacks up to 3; click opens the app |
-| **Phone Link calls** | green call timer + waveform | end / mute | incoming call with decline / accept |
-| **Calendar** (iCal links) | — | — | alert 5 min before and at start, live countdown, *Join Meeting* for Zoom/Meet/Teams links; calendar page with month grid |
-| **Timer** | orange progress ring + countdown | pause / cancel each timer | ruler picker (drag or scroll), label, *Start Timer*; chime when done |
+<br><br>
 
-Click the island at any time to open the expanded view. Use the small tabs at the top to switch between music, calendar and timer.
+**A Dynamic Island for your Windows PC.**<br>
+Music, calls, notifications, timers and AI agents, in one small island at the top of your screen.
 
-## Also included (v3)
+<br>
 
-- **Control panel**: click the island's tray icon (in Hidden icons), or the ⚙ in the expanded island. Changes apply live.
-- **Liquid Glass**: opacity, frost and vibrancy sliders, plus an option to use glass on every page.
-- **Home dashboard**: Music, Focus and Up-next cards, plus battery, Bluetooth devices, water and to-do counts. Open it with **Ctrl+Alt+T**.
-- **Synced lyrics** from LRCLIB: hover the music pill for 3–4 lines in the album's colours. *Dynamic lyrics* shows the current line in the pill. A lyrics button in the player opens a side column.
-- **Music page is always there**: it shows the last track or "Not Playing" with Apple Music / Spotify buttons.
-- **Battery**: charging animation (fill, bolt, glow), "Charger Disconnected", and low-battery warnings at 20% and 10% with a Battery Saver button.
-- **Bluetooth**: when a device connects or disconnects, you get its name, an icon for its type and its battery ring.
-- **Volume HUD**: appears whenever the system volume changes.
-- **Focus (Pomodoro)**, **water reminders**, **to-do list**, **Shelf** (drag files onto the island).
-- **Mascot** idle style (eyes that follow the cursor) as an alternative to the hairline.
-- **AI agent status**: anything can `POST http://127.0.0.1:47823/agent?state=editing|done&title=…`; see the control panel for Claude Code hooks.
+[![Download for Windows](https://img.shields.io/badge/Download_for_Windows-NotchVault_1.0.0-5B1F5E?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/advik-srivastava/NotchVault/releases/latest)
 
-### v4 notes
+<sub>Windows 10 and 11 · 64-bit · Free</sub>
 
-- **Music as a line**: the mini × on the music hover card shrinks music to a hairline so it never covers your tabs; + brings the pill back (also in Settings → Music and lyrics).
-- Clicking the album art or song title opens the player app.
-- **Contact photos**: Phone Link notifications use the contact's photo from Phone Link's synced contacts (read-only); other apps show their own icon.
-- **Phone Link calls**: Phone Link shows calls in its own window, which the island watches for Accept / Decline / End buttons. Each detected call window is logged to `data/phonelink-calls.log` (local only), to help tune detection.
+</div>
 
-## Run
+<br>
 
-Double-click **`Start Dynamic Island.bat`**, or run `npm start`.
+## What it does
 
-A tray icon (a white pill) gives you:
-- **Try it**: demo notification, call, calendar alert, timer and music
-- **Open settings file** / **Reload settings**
-- **Start with Windows**
-- **Quit**
+NotchVault sits at the top centre of your screen as a thin line. When something happens, it opens up to show it, then gets out of your way.
 
-Requirements are already installed on this PC: Node + Electron, Python 3.12 with `winrt-*`, `pycaw` and `uiautomation`.
+- **🎵 Music**: Apple Music, Spotify and other players, with synced lyrics and colours from the album art
+- **📞 Calls**: incoming calls from your Android phone through Phone Link, with the caller's photo
+- **🔔 Notifications**: WhatsApp, Instagram and other phone apps, plus Outlook, with contact photos
+- **✳️ AI agents**: see when Claude, Codex, Copilot or ChatGPT is working, waiting for you or done
+- **⏱️ Timers and alarms**: several timers at once, alarms and Focus sessions
+- **📅 Calendar and to-do**: upcoming events, reminders and a quick task list
+- **📋 Clipboard**: everything you copied, ready to paste again
+- **🔋 System**: charging, Bluetooth devices, volume, brightness, Wi-Fi and airplane mode
 
-## Settings (`config.json`)
+## Install
 
-```jsonc
-{
-  "media": {
-    "apps": ["spotify", "applemusic"],
-    "allowOtherMediaApps": false        // true = also show browsers, VLC, etc.
-  },
-  "musicStyle": "auto",                 // auto = Liquid Glass for Apple Music, black for Spotify | "glass" | "black"
-  "notifications": {
-    "apps": ["YourPhone", "Phone Link", "Outlook"],  // Phone Link (all Android apps) + Outlook mail; [] = every app
-    "ignore": [],                       // e.g. ["Truecaller"]
-    "durationMs": 6000,
-    "islandOnly": true                  // pull alerts out of Windows: no Windows pop-up, island only
-  },
-  "phoneLinkCalls": true,
-  "calendars": [
-    "https://calendar.google.com/calendar/ical/.../basic.ics"   // Google: Settings → calendar → "Secret address in iCal format"
-                                                                 // Outlook: Settings → Calendar → Shared calendars → Publish → ICS link
-  ],
-  "localEvents": [
-    { "title": "GYM", "start": "2026-11-15T17:00", "end": "2026-11-15T18:00" }
-  ],
-  "calendarAlertMinutes": 5,
-  "hideIdlePill": false,               // true = island invisible when nothing is happening
-  "idleWidth": 190
+1. Download **NotchVault-Setup-1.0.0.exe** from the [latest release](https://github.com/advik-srivastava/NotchVault/releases/latest).
+2. Open it. If Windows says *"Windows protected your PC"*, click **More info**, then **Run anyway**.
+3. Follow the short welcome. It explains every button.
+
+For calls and phone notifications, connect your Android phone with **Phone Link** first.
+
+## How to use it
+
+- **Open the island**: move your pointer to the top of the screen, or press <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>T</kbd>.
+- **Switch pages**: click the icons along the top of the island.
+- **Settings**: click ⚙ in the island, or the NotchVault icon in the taskbar's hidden icons.
+
+The three buttons in the corner work everywhere:
+
+| | Button | What it does |
+| :-: | :-: | :-- |
+| 🔴 | × | Quits the music app |
+| 🟡 | − / + | Hides the island to a thin line, or brings it back |
+| 🟢 | ↗ | Keeps the island open |
+
+## Privacy
+
+Everything runs on your PC. Your notifications, calls and clipboard never leave it. NotchVault only goes online to fetch song lyrics and any calendars you add.
+
+<details>
+<summary><b>Connect AI agents in the terminal</b></summary>
+
+<br>
+
+The Claude, ChatGPT, Copilot, Cursor and Gemini apps work automatically. For **Claude Code**, add this to `~/.claude/settings.json`:
+
+```json
+"hooks": {
+  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "curl -s -X POST \"http://127.0.0.1:47823/agent?agent=claude&state=working\"" }] }],
+  "Notification":     [{ "hooks": [{ "type": "command", "command": "curl -s -X POST \"http://127.0.0.1:47823/agent?agent=claude&state=waiting\"" }] }],
+  "Stop":             [{ "hooks": [{ "type": "command", "command": "curl -s -X POST \"http://127.0.0.1:47823/agent?agent=claude&state=done\"" }] }]
 }
 ```
 
-After editing, choose **Reload settings** from the tray menu.
+For **Codex CLI**, add this to `~/.codex/config.toml`:
 
-## How it works
+```toml
+notify = ["curl", "-s", "-X", "POST", "http://127.0.0.1:47823/agent?agent=codex&state=done"]
+```
+</details>
 
-- `main.js`: Electron window. It's transparent, always on top and click-through everywhere except the island. It also hosts the tray menu and reads the calendar feeds.
-- `src/`: the island UI. `spring.js` uses SwiftUI-style springs (response / damping) for width, height, corner radius and the concave "shoulders". Content cross-fades with blur and scale.
-- `bridge/bridge.py`: talks to Windows:
-  - **Media**: `GlobalSystemMediaTransportControls`. This is the same source as the Windows volume flyout, so Spotify and the Apple Music app both work.
-  - **Notifications**: `UserNotificationListener`. Only toasts that arrive after the island starts are shown, and only from the apps you allow.
-  - **Phone Link calls**: Phone Link "Incoming call" toasts are turned into the call UI. Accept / Decline / End are pressed for you through UI Automation. If that fails, Phone Link is brought to the front.
-  - **Volume**: system master volume via Core Audio.
+<details>
+<summary><b>Build it yourself</b></summary>
 
-## Known limits
+<br>
 
-- Spotify / Apple Music don't let other apps "like" a song, so the ★ button is a local favourite list.
-- With *Show alerts only in the island* on (tray menu), Phone Link / Outlook alerts are removed from Windows the moment the island picks them up (~150 ms). They stay in the Phone Link app's own feed but not in the Windows notification centre.
-- While the Liquid Glass player is open, the island is hidden from screenshots and screen recordings. That is how it can "see" the screen behind itself without seeing itself.
-- Calendar feeds are read every 5 minutes. Times with a `TZID` are treated as your local time.
-- SF Pro is used from your installed fonts (not bundled). On another PC it falls back to Segoe UI.
+You need Node.js 20+ and Python 3.12.
+
+```bash
+git clone https://github.com/advik-srivastava/NotchVault.git
+cd NotchVault
+npm install
+pip install -r bridge/requirements.txt
+npm start
+```
+
+To make the installer, run `npm run build:bridge` and then `npm run dist`.
+</details>
+
+<br>
+
+<div align="center">
+
+Made by **[Crazified Studios](https://crazifiedstudios.com)**
+
+<sub>Not affiliated with Apple or Microsoft. Product names belong to their owners.</sub>
+
+</div>

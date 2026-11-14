@@ -1,5 +1,5 @@
 """
-Dynamic Island bridge.
+NotchVault bridge (Crazified Studios).
 
 Talks to Windows on behalf of the Electron UI over stdin/stdout (one JSON
 object per line):
@@ -612,6 +612,11 @@ async def main():
     calls = calls_mod.CallWatcher(emit, log, contacts)
     calls.start()
     try:
+        import radios as radios_mod
+        radios_mod.RadioWatcher(emit, log).start()
+    except Exception as e:
+        log(f"radios unavailable {e!r}")
+    try:
         import brightness as brightness_mod
         bright = brightness_mod.Brightness(emit, log)
         bright.start()
@@ -692,6 +697,7 @@ async def main():
             media.last_key = None
         elif cmd == "refresh":
             media.last_key = None
+            media.force_power = True
             media.sent_art_key = None      # resend the album art too (the UI may have just loaded)
             media.sent_art = False
             await media.poll()
@@ -733,10 +739,27 @@ async def main():
 
     # Budget (idle): notifications ~3x/s (fast enough to catch banners), media ~1x/s,
     # volume is event-driven (this poll is only a safety net).
+    # battery: the exact percentage Windows shows (GetSystemPowerStatus), sent whenever it changes
+    class _SPS(ctypes.Structure):
+        _fields_ = [('ac', ctypes.c_ubyte), ('flag', ctypes.c_ubyte), ('pct', ctypes.c_ubyte), ('saver', ctypes.c_ubyte),
+                    ('life', ctypes.c_ulong), ('full', ctypes.c_ulong)]
+    sps = _SPS()
+    last_power = [None]
+    def poll_power(force=False):
+        if not ctypes.windll.kernel32.GetSystemPowerStatus(ctypes.byref(sps)) or sps.pct == 255 or sps.flag & 128:
+            return
+        cur = (sps.pct, sps.ac == 1, sps.saver == 1)
+        if force or cur != last_power[0]:
+            last_power[0] = cur
+            emit({'type': 'power', 'data': {'level': sps.pct / 100, 'charging': sps.ac == 1, 'saver': sps.saver == 1}})
+
     tick = 0
     while True:
         try:
             await notifs.poll()
+            if tick % 2 == 0 or getattr(media, 'force_power', False):
+                force = getattr(media, 'force_power', False); media.force_power = False
+                poll_power(force)
             if tick % 3 == 0:
                 await media.poll()
             if tick % 40 == 0:

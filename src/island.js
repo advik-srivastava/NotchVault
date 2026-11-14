@@ -1,4 +1,4 @@
-/* Dynamic Island for Windows — renderer (v3) */
+/* NotchVault — renderer · Crazified Studios */
 (() => {
   // ------------------------------------------------------------------ host api (Electron or browser preview)
   const preview = !window.islandAPI;
@@ -275,11 +275,12 @@
     if (api.setConfig) api.setConfig({ musicCompact: v }).catch(() => {});
     render();
   }
-  const PAGES = ['home', 'music', 'calendar', 'timer', 'todo', 'clipboard'];
+  const PAGES = ['home', 'music', 'calendar', 'timer', 'todo', 'clipboard', 'agents'];
   const pages = () => PAGES;
 
   function decide() {
     if (S.call && S.call.state === 'incoming') return 'call';
+    if (S.welcome) return 'welcome';
     if (S.transient) return `t:${S.transient.kind}`;
     if (S.expanded) return `page:${S.page}`;
     if (S.call && S.call.state === 'active') return S.hover ? 'callHover' : 'callCompact';
@@ -308,6 +309,13 @@
     $island.classList.toggle('hairline', (key === 'idle' && (C().idleStyle || 'line') === 'line') || key === 'mediaLine');
     $island.classList.toggle('mascot-glow', key === 'idle' && C().idleStyle === 'mascot' && mascotGlow);
     $island.classList.toggle('expanded', key.startsWith('page:'));
+    const mm = S.media || S.lastMedia;
+    $island.classList.toggle('albwash', key === 'page:music' && !!mm && !glassStyleFor(mm));
+    // AI agents: a slow wave in the agent's colour flows behind the island
+    const agKey = key === 'agentCompact' || key === 'agentHover' ? (S.agent && S.agent.key)
+      : (key === 't:agentDone' || key === 't:agentWait') ? (S.transient && S.transient.data && S.transient.data.key) : null;
+    $island.classList.toggle('agentwave', !!agKey);
+    if (agKey) $island.style.setProperty('--agc', agentMeta(agKey).color);
     const hold = S.pinned > 0 || S.keepOpen || (key.startsWith('page:') && expandedByShortcut);
     if (hold !== lastHold) { lastHold = hold; api.holdMouse(hold); }
     const typing = key === 'page:todo' || key === 'page:timer' || key === 'page:calendar';
@@ -323,7 +331,7 @@
     const sig = pages().join(',');
     if (sig !== tabsSig) {
       tabsSig = sig;
-      const icons = { home: I.home(14), music: I.music(14), calendar: I.calendar(14), timer: I.timer(14), todo: I.todo(14), clipboard: I.clip(14) };
+      const icons = { home: I.home(14), music: I.music(14), calendar: I.calendar(14), timer: I.timer(14), todo: I.todo(14), clipboard: I.clip(14), agents: I.sparkle(14) };
       $tabs.querySelectorAll('.tab, .when, .tlights').forEach((t) => t.remove());
       // macOS traffic lights at the top-left of the expanded island
       const tl = h('<div class="tlights"></div>');
@@ -348,7 +356,7 @@
       $tabs.appendChild(when);
     }
     // refresh the lights only when what they mean changes (player open? hidden? pinned?)
-    const ls = [!!S.media, S.expanded, C().minimized, playerName()].join('|');
+    const ls = [!!S.media, S.expanded, C().minimized, playerName(), S.keepOpen].join('|');
     if (ls !== lightsSig) {
       lightsSig = ls;
       const box = $tabs.querySelector('.tlights');
@@ -449,6 +457,18 @@
     if (m.duration) pos = Math.min(pos, m.duration);
     return pos;
   }
+  function appName(m) {
+    const a = String((m && m.app) || '').toLowerCase();
+    if (/spotify/.test(a)) return 'Spotify';
+    if (/applemusic/.test(a)) return 'Apple Music';
+    if (/chrome/.test(a)) return 'Google Chrome';
+    if (/msedge|microsoftedge/.test(a)) return 'Microsoft Edge';
+    if (/opera/.test(a)) return 'Opera';
+    if (/firefox/.test(a)) return 'Firefox';
+    if (/brave/.test(a)) return 'Brave';
+    if (/vlc/.test(a)) return 'VLC';
+    return m && m.source === 'applemusic' ? 'Apple Music' : 'Music';
+  }
   const accentFor = (src) => (src === 'spotify' ? '#1ed760' : '#fa2d48');
   const mediaKey = (m = S.media) => (m ? `${m.title}|${m.artist}` : '');
   const touchMedia = (m) => { m.receivedAt = Date.now(); };
@@ -477,34 +497,71 @@
   }
 
   const colorCache = new Map();
+  // Album palette, Apple Music style: the cover's two dominant colours (weighted by how much of
+  // the cover they fill), turned into a dark, readable background gradient + a bright accent.
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (mx + mn) / 2;
+    if (mx !== mn) {
+      const d = mx - mn;
+      s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+      h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      h *= 60;
+    }
+    return [h, s, l];
+  }
+  const hsl = (h, s, l) => `hsl(${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%)`;
+  const NEUTRAL = { bright: '#ffffff', dark: '#1c1c1e', dark2: '#2c2c2e', c1: '#1c1c1e', c2: '#2c2c2e' };
   function artColors(url, cb) {
-    if (!url) return cb({ bright: '#ffffff', dark: '#1c1c1e', dark2: '#2c2c2e' });
+    if (!url) return cb(NEUTRAL);
     if (colorCache.has(url)) return cb(colorCache.get(url));
     const img = new Image();
     img.onload = () => {
       try {
-        const c = document.createElement('canvas'); c.width = c.height = 12;
-        const g = c.getContext('2d'); g.drawImage(img, 0, 0, 12, 12);
-        const d = g.getImageData(0, 0, 12, 12).data;
-        let r = 0, gg = 0, b = 0, n = 0, best = null, bestSat = -1;
+        const N = 24;
+        const c = document.createElement('canvas'); c.width = c.height = N;
+        const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0, N, N);
+        const d = g.getImageData(0, 0, N, N).data;
+        const bins = Array.from({ length: 12 }, () => ({ w: 0, r: 0, g: 0, b: 0, s: 0, l: 0, n: 0 }));
+        let total = 0, sumL = 0, colorful = 0;
         for (let i = 0; i < d.length; i += 4) {
-          const R = d[i], G = d[i + 1], B = d[i + 2];
-          const mx = Math.max(R, G, B), mn = Math.min(R, G, B);
-          const sat = mx ? (mx - mn) / mx : 0;
-          r += R; gg += G; b += B; n++;
-          if (mx > 70 && sat > bestSat) { bestSat = sat; best = [R, G, B]; }
+          const [h, s, l] = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+          total++; sumL += l;
+          if (s < 0.18 || l < 0.08 || l > 0.94) continue;      // greys, blacks, whites don't vote
+          colorful++;
+          const w = s * (1 - Math.abs(l - 0.5));                 // vivid mid-tones weigh most
+          const bin = bins[Math.floor(h / 30) % 12];
+          bin.w += w; bin.r += d[i] * w; bin.g += d[i + 1] * w; bin.b += d[i + 2] * w; bin.s += s * w; bin.l += l * w; bin.n++;
         }
-        const avg = [r / n, gg / n, b / n];
-        const base = best && bestSat > 0.22 ? best : avg;
-        const mx = Math.max(...base) || 1;
-        const bright = `rgb(${base.map((v) => Math.round(Math.min(255, (v / mx) * 235 + 20))).join(',')})`;
-        const darkC = (k) => `rgb(${base.map((v) => Math.round((v / mx) * k)).join(',')})`;
-        const out = { bright, dark: darkC(70), dark2: darkC(130) };
+        let out;
+        if (colorful / total < 0.06) {
+          // a black & white cover gets a neutral, slightly lighter or darker grey palette
+          const L = sumL / total;
+          out = { bright: '#f2f2f7', c1: hsl(240, 0.04, 0.24 + L * 0.06), c2: hsl(240, 0.05, 0.12), dark: hsl(240, 0.04, 0.24 + L * 0.06), dark2: hsl(240, 0.05, 0.12) };
+        } else {
+          const ranked = bins.map((b, i) => ({ ...b, i })).filter((b) => b.w > 0).sort((a, b) => b.w - a.w);
+          const avgOf = (b) => rgbToHsl(b.r / b.w, b.g / b.w, b.b / b.w);
+          const first = ranked[0];
+          const [h1, s1] = avgOf(first);
+          // second colour: the next strong hue at least 2 bins away, otherwise a shifted shade of the first
+          const second = ranked.find((b) => Math.min(Math.abs(b.i - first.i), 12 - Math.abs(b.i - first.i)) >= 2 && b.w > first.w * 0.18);
+          const [h2, s2] = second ? avgOf(second) : [(h1 + 25) % 360, s1];
+          const sat = (s) => Math.min(0.75, Math.max(0.35, s));
+          out = {
+            bright: hsl(h1, Math.max(0.55, Math.min(0.9, s1)), 0.68),
+            c1: hsl(h1, sat(s1), 0.30),
+            c2: hsl(h2, sat(s2), 0.17),
+            dark: hsl(h1, sat(s1), 0.30),
+            dark2: hsl(h2, sat(s2), 0.17),
+          };
+        }
         colorCache.set(url, out);
         cb(out);
-      } catch { cb({ bright: '#ffffff', dark: '#1c1c1e', dark2: '#2c2c2e' }); }
+      } catch { cb(NEUTRAL); }
     };
-    img.onerror = () => cb({ bright: '#ffffff', dark: '#1c1c1e', dark2: '#2c2c2e' });
+    img.onerror = () => cb(NEUTRAL);
     img.src = url;
   }
   function waveHtml(n = 5) {
@@ -548,7 +605,12 @@
     });
     if (el.dataset.colorFor === url) return;
     el.dataset.colorFor = url;
-    artColors(url, (c) => { el.style.setProperty('--wave', c.bright); el.style.setProperty('--lyr-bg', `linear-gradient(135deg, ${c.dark}, ${c.dark2})`); });
+    artColors(url, (c) => {
+      el.style.setProperty('--wave', c.bright);
+      el.style.setProperty('--alb1', c.c1); el.style.setProperty('--alb2', c.c2);
+      $island.style.setProperty('--alb1', c.c1); $island.style.setProperty('--alb2', c.c2);
+      el.style.setProperty('--lyr-bg', `linear-gradient(135deg, ${c.c1}, ${c.c2})`);
+    });
   }
   function setWave(el, playing) { el.querySelectorAll('.wave').forEach((w) => w.classList.toggle('playing', !!playing)); }
   function setupMarquee(el, text) {
@@ -700,7 +762,7 @@
   const sizeBtn = () => `<div class="lights">
       <button class="tl red ${S.media ? '' : 'off'}" data-act="quit-ask" title="${S.media ? `Quit ${playerName()}` : 'No music app is open'}"><svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg></button>
       <button class="tl yellow" data-act="${C().minimized ? 'restore' : 'minimize'}" title="${C().minimized ? 'Keep the island on screen' : 'Hide the island'}"><svg viewBox="0 0 12 12"><path d="${C().minimized ? 'M6 3v6M3 6h6' : 'M3 6h6'}"/></svg></button>
-      <button class="tl green" data-act="open-island" title="${S.expanded ? 'Open the app' : 'Open in the island'}"><svg viewBox="0 0 12 12"><path d="M4 3.2h4.8V8M8.8 3.2 3.2 8.8"/></svg></button>
+      <button class="tl green ${S.keepOpen ? 'on' : ''}" data-act="keep-open" title="${S.keepOpen ? 'Unpin: let the island close again' : 'Pin: keep the island open'}"><svg viewBox="0 0 12 12"><path d="M4 3.2h4.2v4.2M8.2 3.2 3.4 8"/></svg></button>
     </div>`;
 
   // yellow: hide the island to a hairline (calls, notifications and alarms still pop up)
@@ -722,7 +784,7 @@
     if (C().minimized) restoreIsland();
     if (S.expanded) { if (S.media || S.lastMedia) openPlayerApp(); return; }
     const live = liveKind();
-    S.page = (S.media || live === 'media') ? 'music' : live === 'timer' ? 'timer' : 'home';
+    S.page = live === 'agent' ? 'agents' : (S.media || live === 'media') ? 'music' : live === 'timer' ? 'timer' : 'home';
     S.expanded = true; S.hover = true;
     render();
   }
@@ -919,6 +981,16 @@
     };
   };
 
+  // ---- song changed: short "Now Playing" pop-up (shown even when the island is hidden)
+  VIEWS['t:nowPlaying'] = () => {
+    const m = S.media || S.lastMedia || {};
+    const el = h(`<div class="nowp"><div class="art"></div>
+      <div class="grow" style="min-width:0"><div class="nplbl">${I.music(10)} Now Playing · ${esc(appName(m))}</div><div class="t-title ellipsis">${esc(m.title || '')}</div><div class="t-sub ellipsis">${esc(m.artist || '')}</div></div>
+      ${waveHtml(5)}</div>`);
+    el.addEventListener('click', (e) => { e.stopPropagation(); S.transient = null; if (C().minimized) restoreIsland(); S.page = 'music'; S.expanded = true; render(); });
+    return { w: 400, h: 64, el, update() { bindArt(el); setWave(el, isPlaying()); } };
+  };
+
   // ---- AI agents (Claude, ChatGPT, Codex, Copilot, Cursor, Gemini...): working / needs input / done
   const AGENT_META = {
     claude: { name: 'Claude', color: '#d97757' },
@@ -954,20 +1026,40 @@
     return s + '</div>';
   }
   // compact: agent icon on the left, "working" bars on the right (in the agent's colour)
+  function fmtDur(s) {
+    s = Math.max(0, Math.round(s));
+    const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+    return hh ? `${hh}h ${String(mm).padStart(2, '0')}m` : mm ? `${mm}m ${String(ss).padStart(2, '0')}s` : `${ss}s`;
+  }
+  const workingAgents = () => Object.values(S.agents || {}).filter((x) => x.state === 'editing' || x.state === 'waiting');
+  function openAgents(e) {
+    if (e) e.stopPropagation();
+    if (C().minimized) restoreIsland();
+    S.transient = null; S.page = 'agents'; S.expanded = true; S.hover = true;
+    render();
+  }
   VIEWS.agentCompact = () => {
     const a = S.agent;
-    const el = h(`<div class="compact agc">${agentIcon(a.key, 20)}${agentBars(agentMeta(a.key).color)}</div>`);
-    return { w: 300, h: 32, el, update() {} };
+    const el = h(`<div class="compact agc">${agentIcon(a.key, 20)}<span class="grow"></span><span class="agt tabular"></span>${agentBars(agentMeta(a.key).color)}</div>`);
+    el.addEventListener('click', openAgents);
+    const upd = () => { if (S.agent) el.querySelector('.agt').textContent = fmtDur((Date.now() - S.agent.since) / 1000); };
+    upd();
+    return { w: 300, h: 32, el, update: upd };
   };
   VIEWS.agentHover = () => {
     const a = S.agent;
     const m = agentMeta(a.key);
+    const others = workingAgents().filter((x) => x.key !== a.key);
     const el = h(`<div class="agh">${sizeBtn()}
       <div class="row" style="gap:10px;margin-top:6px">${agentIcon(a.key, 30)}
-        <div class="grow" style="min-width:0"><div class="t-title ellipsis">${esc(a.title || m.name)}</div><div class="t-sub ellipsis" style="font-size:12px">${esc(a.detail || 'Working…')}</div></div>
-        <span class="tm tabular"></span>${agentBars(m.color)}</div></div>`);
-    el.querySelector('.lights').addEventListener('click', onMediaAct);
-    return { w: 400, el, update() { if (S.agent) el.querySelector('.tm').textContent = fmt((Date.now() - S.agent.since) / 1000); } };
+        <div class="grow" style="min-width:0"><div class="t-title ellipsis">${esc(m.name)}</div><div class="t-sub ellipsis" style="font-size:12px">${esc(a.detail || 'Working…')}</div></div>
+        <div class="agclock"><span class="lbl">Working for</span><span class="tm tabular"></span></div>${agentBars(m.color)}</div>
+      ${others.length ? `<div class="agmore">${others.map((o) => agentIcon(o.key, 16)).join('')}<span>+${others.length} more agent${others.length > 1 ? 's' : ''} working</span></div>` : ''}</div>`);
+    // the traffic-light row is as wide as the bar: only its buttons act, a click anywhere else opens the island
+    el.addEventListener('click', (e) => { if (e.target.closest('[data-act]')) onMediaAct(e); else openAgents(e); });
+    const upd = () => { if (S.agent) el.querySelector('.tm').textContent = fmtDur((Date.now() - S.agent.since) / 1000); };
+    upd();
+    return { w: 420, el, update: upd };
   };
   // finished: icon top-left, "✳ Job is done" in the middle (like the reference)
   VIEWS['t:agentDone'] = () => {
@@ -1150,19 +1242,22 @@
   }
   VIEWS['t:charge'] = () => {
     const b = S.transient.data;
-    const el = h(`<div class="chg">${battEl(b.level, '#30d158', true)}<span class="lbl green">Charging</span><span class="pct tabular">0%</span></div>`);
+    const devs = (S.btDevices || []).filter((d) => d.battery != null).slice(0, 3);
+    const el = h(`<div class="chgwrap"><div class="chg">${battEl(b.level, '#30d158', true)}<span class="lbl green">${b.level >= 0.995 ? 'Fully Charged' : 'Charging'}</span><span class="pct tabular">0%</span></div>`
+      + (devs.length ? `<div class="chgdevs">${devs.map((d) => `<span class="cdev">${devIcon(d.kind).replace(/width="22" height="22"/, 'width="14" height="14"')}<span class="n ellipsis">${esc(d.name)}</span><b class="tabular ${d.battery <= 20 ? 'lowb' : ''}">${d.battery}%</b></span>`).join('')}</div>` : '') + '</div>');
     const target = Math.round(b.level * 100);
     requestAnimationFrame(() => requestAnimationFrame(() => { el.querySelector('.fill').style.width = `calc(${b.level * 100}% - 4px)`; }));
     const t0 = performance.now();
     const tick = (now) => {
-      const k = Math.min(1, (now - t0) / 1200);
+      const k = Math.min(1, (now - t0) / 700);
       const eased = 1 - Math.pow(1 - k, 3);
-      el.querySelector('.pct').textContent = `${Math.round(target * eased)}%`;
+      const from = Math.max(0, target - 15);
+      el.querySelector('.pct').textContent = `${k >= 1 ? target : Math.round(from + (target - from) * eased)}%`;
       if (k < 1 && el.isConnected) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
     flashGlow('green');
-    return { w: 360, h: 44, el };
+    return devs.length ? { w: 400, el } : { w: 360, h: 44, el };
   };
   VIEWS['t:unplug'] = () => {
     const b = S.transient.data;
@@ -1185,7 +1280,7 @@
   let glowT = null;
   function flashGlow(c) {
     clearTimeout(glowT);
-    $glow.style.setProperty('--glow', c === 'red' ? '255,69,58' : '48,209,88');
+    $glow.style.setProperty('--glow', ({ red: '255,69,58', orange: '255,159,10', grey: '142,142,147' })[c] || '48,209,88');
     requestAnimationFrame(() => $glow.classList.add('on'));
     glowT = setTimeout(() => $glow.classList.remove('on'), 1700);
   }
@@ -1206,6 +1301,161 @@
     el.addEventListener('click', (e) => { e.stopPropagation(); api.openBluetooth(); S.transient = null; render(); });
     if (lvl != null) requestAnimationFrame(() => requestAnimationFrame(() => { el.querySelector('.ring-fg').style.strokeDashoffset = String(CIRC * (1 - lvl / 100)); }));
     return { w: 400, h: 68, el };
+  };
+
+  // ---- Wi-Fi / Bluetooth / airplane mode / battery saver
+  const RADIO = {
+    wifi: { name: 'Wi-Fi', col: '#0a84ff',
+      icon: (on) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path class="a3" d="M2.5 9a14 14 0 0 1 19 0"/><path class="a2" d="M5.5 12.4a9.5 9.5 0 0 1 13 0"/><path class="a1" d="M8.6 15.7a5 5 0 0 1 6.8 0"/><circle class="a0" cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/>${on ? '' : '<path class="slash" d="M4 3l16 18"/>'}</svg>` },
+    bluetooth: { name: 'Bluetooth', col: '#0a84ff',
+      icon: (on) => `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 4V3l5 4L7 17"/>${on ? '' : '<path class="slash" d="M4 3l16 18"/>'}</svg>` },
+    airplane: { name: 'Airplane Mode', col: '#ff9f0a',
+      icon: () => `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M21 15.5v-1.7l-7.6-4.8V3.6A1.4 1.4 0 0 0 12 2.2a1.4 1.4 0 0 0-1.4 1.4V9L3 13.8v1.7l7.6-2.4v5.2l-2.1 1.6v1.4l3.5-1 3.5 1v-1.4l-2.1-1.6v-5.2z"/></svg>` },
+    saver: { name: 'Battery Saver', col: '#ffd60a', icon: () => '' },
+  };
+  VIEWS['t:radio'] = () => {
+    const d = S.transient.data;
+    const R = RADIO[d.kind] || RADIO.wifi;
+    const on = !!d.on;
+    let ico;
+    if (d.kind === 'saver') {
+      const lvl = d.level != null ? d.level : (S.battery ? S.battery.level : 0.5);
+      ico = battEl(lvl, on ? '#ffd60a' : '#ffffff', false);
+    } else if (d.kind === 'airplane') {
+      // a jet with its contrail flies the length of the island; on: it lands as the icon, off: it takes off from it
+      ico = `<span class="flight"><i class="cloud c1"></i><i class="cloud c2"></i><i class="cloud c3"></i>
+          <span class="jet"><span class="contrail"></span><span class="jplane">${R.icon(on)}</span></span></span>
+        <span class="apico">${R.icon(on)}</span>`;
+    } else {
+      ico = `<span class="rico ${on ? 'on' : 'off'}" style="--rc:${R.col}">${R.icon(on)}</span>`;
+    }
+    const el = h(`<div class="rad ${d.kind} ${on ? 'on' : 'off'}" style="--rc:${R.col}">${ico}<span class="lbl">${R.name}</span><span class="st">${on ? 'On' : 'Off'}</span></div>`);
+    if (d.kind === 'saver') requestAnimationFrame(() => requestAnimationFrame(() => { const f = el.querySelector('.fill'); if (f) f.style.width = `calc(${(d.level != null ? d.level : (S.battery ? S.battery.level : 0.5)) * 100}% - 4px)`; }));
+    el.addEventListener('click', (e) => { e.stopPropagation(); S.transient = null; render(); });
+    if (d.kind === 'airplane') flashGlow(on ? 'orange' : 'grey');
+    return { w: d.kind === 'airplane' ? 380 : 330, h: 44, el };
+  };
+
+  // ---- first run: the logo, then "hello" in many languages (like a new iPhone), then Welcome
+  // hello, written by hand in many languages (stroke traced, then ink flows in)
+  const HELLOS = [
+    ['hello', 'en'], ['नमस्ते', 'hi'], ['hola', 'es'], ['bonjour', 'fr'], ['こんにちは', 'ja'], ['안녕하세요', 'ko'],
+    ['ciao', 'it'], ['привет', 'ru'], ['你好', 'zh'], ['olá', 'pt'], ['مرحبا', 'ar'], ['hallo', 'de'], ['hello', 'en'],
+  ];
+  const HW_FONT = { hi: "'Nirmala UI', 'Segoe Script'", ja: "'Yu Gothic UI', 'Segoe Script'", ko: "'Malgun Gothic', 'Segoe Script'", zh: "'Microsoft YaHei UI', 'Segoe Script'", ar: "'Segoe UI', 'Segoe Script'" };
+  // the guide: every icon in the island, explained once
+  const GUIDE = [
+    { key: 'lights', title: 'Window buttons', body: '<b class="r">×</b> quits your music app &nbsp;·&nbsp; <b class="y">−</b> hides the island to a thin line, <b class="y">+</b> brings it back &nbsp;·&nbsp; <b class="g">↗</b> pins the island open' },
+    { key: 'home', title: 'Home', body: 'Battery, Bluetooth devices, Focus and your day, at a glance.' },
+    { key: 'music', title: 'Music', body: 'Apple Music, Spotify and more, with synced lyrics and a volume just for the player.' },
+    { key: 'calendar', title: 'Calendar', body: 'Your upcoming events. Tap + to add one.' },
+    { key: 'timer', title: 'Timers and alarms', body: 'Run several timers at once, set alarms and start Focus sessions.' },
+    { key: 'todo', title: 'To-do', body: 'Quick tasks you can tick off without opening another app.' },
+    { key: 'clipboard', title: 'Clipboard', body: 'Everything you copied, ready to paste again.' },
+    { key: 'agents', title: 'AI agents', body: 'Claude, Codex, Copilot, ChatGPT and more: who is working, and for how long.' },
+    { key: 'settings', title: 'Settings', body: 'Liquid Glass, pop-ups, shortcuts and everything else.' },
+    { key: 'tip', title: 'You’re all set', body: '' },
+  ];
+  function startWelcome() {
+    if (S.welcome) return;
+    if (C().minimized) restoreIsland();
+    S.transient = null; S.expanded = false; S.hover = false;
+    S.welcome = { at: Date.now() };
+    render();
+  }
+  function endWelcome() {
+    if (!S.welcome) return;
+    S.welcome = null;
+    S.config.welcomed = true;
+    if (api.setConfig) api.setConfig({ welcomed: true }).catch(() => {});
+    render();
+  }
+  VIEWS.welcome = () => {
+    const el = h(`<div class="welcome">
+      <svg width="0" height="0" style="position:absolute"><defs><linearGradient id="hwInk" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#fff8ea"/><stop offset=".55" stop-color="#ecd08f"/><stop offset="1" stop-color="#fff8ea"/></linearGradient></defs></svg>
+      <div class="wl-aura"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+      <img class="wl-logo" src="../assets/logo.svg" alt="">
+      <div class="wl-words"></div>
+      <div class="wl-end">
+        <div class="wl-title">Welcome to NotchVault</div>
+        <div class="wl-sub">Music, calls, notifications and your AI agents, live at the top of your screen.</div>
+        <button class="wl-go">Get Started</button>
+      </div>
+      <div class="wl-tour">
+        <div class="tr-bar"><span class="tr-ink"></span></div>
+        <div class="tr-card"></div>
+        <div class="tr-foot"><div class="tr-dots"></div><button class="tr-back">Back</button><button class="tr-next">Next</button></div>
+      </div>
+      <button class="wl-skip">Skip</button>
+    </div>`);
+    const words = el.querySelector('.wl-words');
+    const timers = [];
+    const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+
+    // ---- 1 · handwriting
+    let i = 0;
+    function nextWord() {
+      if (!el.isConnected) return;
+      const [txt, lang] = HELLOS[i];
+      const first = i === 0 || i === HELLOS.length - 1;
+      const old = words.querySelector('.hw.cur');
+      if (old) { old.classList.remove('cur'); old.classList.add('out'); setTimeout(() => old.remove(), 600); }
+      const rtl = lang === 'ar';
+      const font = HW_FONT[lang] || "'Segoe Script', 'Ink Free', cursive";
+      const size = first ? 74 : /^(ja|ko|zh|hi)$/.test(lang) ? 52 : 62;
+      const svg = `<svg class="hw cur ${rtl ? 'rtl' : ''} ${first ? 'first' : ''}" viewBox="0 0 560 96" lang="${lang}">
+        <text class="trace" x="280" y="66" text-anchor="middle" style="font-family:${font};font-size:${size}px" ${rtl ? 'direction="rtl"' : ''}>${esc(txt)}</text>
+        <text class="ink" x="280" y="66" text-anchor="middle" fill="url(#hwInk)" style="font-family:${font};font-size:${size}px" ${rtl ? 'direction="rtl"' : ''}>${esc(txt)}</text>
+        <circle class="pen" cx="0" cy="58" r="3.2"/></svg>`;
+      words.insertAdjacentHTML('beforeend', svg);
+      // the pen tip travels exactly across this word
+      try {
+        const node = words.lastElementChild, bb = node.querySelector('.ink').getBBox();
+        node.style.setProperty('--x0', `${bb.x}px`); node.style.setProperty('--x1', `${bb.x + bb.width}px`);
+        node.querySelector('.pen').setAttribute('cy', String(bb.y + bb.height * 0.62));
+      } catch {}
+      i++;
+      if (i < HELLOS.length) later(first ? 2300 : 1250, nextWord);
+      else later(2300, () => el.classList.add('final'));
+    }
+    later(1500, () => { el.classList.add('words'); nextWord(); });
+
+    // ---- 2 · the icon guide
+    const bar = el.querySelector('.tr-bar');
+    const lightsMini = '<span class="mini-lights"><i class="r"></i><i class="y"></i><i class="g"></i></span>';
+    const iconFor = (k) => ({ lights: lightsMini, home: I.home(15), music: I.music(15), calendar: I.calendar(15), timer: I.timer(15), todo: I.todo(15), clipboard: I.clip(15), agents: I.sparkle(15), settings: I.gear(14), tip: I.check(15) }[k]);
+    GUIDE.forEach((g, n) => bar.insertAdjacentHTML('beforeend', `<span class="tr-ic" data-n="${n}">${iconFor(g.key)}</span>`));
+    el.querySelector('.tr-dots').innerHTML = GUIDE.map(() => '<i></i>').join('');
+    let step = 0;
+    function showStep(n, dir = 1) {
+      step = Math.max(0, Math.min(GUIDE.length - 1, n));
+      const g = GUIDE[step];
+      const ics = [...bar.querySelectorAll('.tr-ic')];
+      ics.forEach((x, k) => x.classList.toggle('on', k === step));
+      const on = ics[step];
+      const ink = bar.querySelector('.tr-ink');
+      ink.style.width = `${on.offsetWidth + 8}px`;
+      ink.style.transform = `translateX(${on.offsetLeft - 4}px)`;
+      el.querySelectorAll('.tr-dots i').forEach((d, k) => d.classList.toggle('on', k === step));
+      const sc = C().shortcut ? C().shortcut.replace(/Control/i, 'Ctrl') : '';
+      const body = g.key === 'tip'
+        ? `Move your pointer to the top of the screen to open the island${sc ? `, or press <kbd>${esc(sc)}</kbd>` : ''}. Replay this guide any time in Settings.`
+        : g.body;
+      const card = el.querySelector('.tr-card');
+      card.innerHTML = `<div class="tr-in ${dir < 0 ? 'back' : ''}"><span class="tr-big ${g.key}">${g.key === 'lights' ? '<span class="big-lights"><i class="r">×</i><i class="y">−</i><i class="g">↗</i></span>' : iconFor(g.key)}</span>
+        <div class="tr-txt"><div class="tr-t">${g.title}</div><div class="tr-b">${body}</div></div></div>`;
+      el.querySelector('.tr-back').style.visibility = step ? 'visible' : 'hidden';
+      el.querySelector('.tr-next').textContent = step === GUIDE.length - 1 ? 'Done' : 'Next';
+    }
+    el.querySelector('.wl-go').addEventListener('click', (e) => { e.stopPropagation(); el.classList.add('touring'); requestAnimationFrame(() => showStep(0)); });
+    el.querySelector('.tr-next').addEventListener('click', (e) => { e.stopPropagation(); if (step === GUIDE.length - 1) endWelcome(); else showStep(step + 1, 1); });
+    el.querySelector('.tr-back').addEventListener('click', (e) => { e.stopPropagation(); showStep(step - 1, -1); });
+    bar.addEventListener('click', (e) => { const t = e.target.closest('.tr-ic'); if (t) { e.stopPropagation(); showStep(+t.dataset.n, +t.dataset.n >= step ? 1 : -1); } });
+    el.querySelector('.wl-skip').addEventListener('click', (e) => { e.stopPropagation(); endWelcome(); });
+    el.addEventListener('click', (e) => e.stopPropagation());
+    el.__tour = (n) => { el.classList.add('final', 'touring'); showStep(n); };   // test hook
+    return { w: 560, h: 236, el, destroy() { timers.forEach(clearTimeout); } };
   };
 
   // ---- volume HUD
@@ -1313,7 +1563,7 @@
   // ------------------------------------------------------------------ expanded pages
   VIEWS.page = (key) => {
     const p = key.split(':')[1];
-    return ({ home: pageHome, music: pageMusic, calendar: pageCalendar, timer: pageTimer, todo: pageTodo, clipboard: pageClipboard }[p] || pageHome)();
+    return ({ home: pageHome, music: pageMusic, calendar: pageCalendar, timer: pageTimer, todo: pageTodo, clipboard: pageClipboard, agents: pageAgents }[p] || pageHome)();
   };
 
   // ---- home: iOS-style widgets (Now Playing · Calendar · Focus · Batteries)
@@ -1436,18 +1686,15 @@
     const m0 = S.media || S.lastMedia;
     const glassy = glassStyleFor(m0);
     if (!S.media) return pageMusicEmpty(glassy);
-    const left = glassy ? `<button class="icon-btn side" data-act="queue" title="Open player">${I.list(17)}</button>`
-      : `<button class="icon-btn small" data-act="shuffle" title="Shuffle">${I.shuffle(16)}</button>`;
-    const right = glassy ? `<button class="icon-btn side" data-act="output" title="Sound output">${I.device(18)}</button>`
-      : '<button class="icon-btn small fav" data-act="fav" title="Favourite"></button>';
+    const left = `<button class="icon-btn small" data-act="shuffle" title="Shuffle">${I.shuffle(16)}</button>`;
+    const right = `<button class="icon-btn small spk" data-act="appvol" title="${esc(appName(S.media))} volume">${I.speakerLoud(16)}</button>`;
     const el = h(`<div class="page">
       <div class="player ${glassy ? 'glassy' : ''}" style="padding-top:4px">
         <div class="lyr-wrap"><div style="flex:1;min-width:0">
         <div class="row head">
           <div class="art big link" data-act="open-app" title="Open the player"><div class="badge"></div></div>
           <div class="grow meta link" data-act="open-app" title="Open the player"><div class="t-title ellipsis title"></div><div class="t-sub ellipsis artist"></div><div class="album ellipsis"></div></div>
-          <button class="icon-btn lyrbtn" data-act="lyrics" title="Lyrics" style="width:30px;height:30px">${I.quote(15)}</button>
-          ${waveHtml(6)}
+          <div class="hright"><span class="srcname"></span><div class="row" style="gap:6px"><button class="icon-btn lyrbtn" data-act="lyrics" title="Lyrics" style="width:30px;height:30px">${I.quote(15)}</button>${waveHtml(6)}</div></div>
         </div>
         <div class="row progress"><span class="time tabular el"></span><div class="bar"><div class="rail"><div class="fill"></div></div></div><span class="time tabular tot"></span></div>
         <div class="row controls">
@@ -1458,9 +1705,9 @@
           ${right}
         </div>
         <div class="row volume hide" style="display:none">
-          <span style="color:#c7c7cc">${I.speaker(14)}</span>
+          <span class="vlo" style="color:#c7c7cc">${I.speaker(14)}</span>
           <div class="bar vol"><div class="rail"><div class="fill"></div></div></div>
-          <span style="color:#c7c7cc">${I.speakerLoud(15)}</span>
+          <span class="vpct tabular">—</span>
         </div>
         </div></div>
       </div>
@@ -1482,6 +1729,7 @@
       }
       if (act === 'queue') { if (S.media && S.media.app) api.openApp(S.media.app); return; }
       if (act === 'output') { api.openSound(); return; }
+      if (act === 'appvol') { S.appVolOpen = !S.appVolOpen; if (S.appVolOpen) api.bridge({ cmd: 'app-volume', app: S.media.app }); upd(); return; }
       if (['quit-ask', 'shrink', 'grow', 'pin-toggle', 'minimize', 'keep-open', 'restore', 'open-island'].includes(act)) { onMediaAct(e); return; }
       if (act === 'lyrics') { setLyricsShown(!lyricsShown()); upd(); relayout(); return; }
       if (act === 'open-app') { openPlayerApp(); return; }
@@ -1494,16 +1742,20 @@
     const vbar = el.querySelector('.bar.vol');
     let vdrag = false;
     const fracAt = (x) => { const r = vbar.getBoundingClientRect(); return Math.max(0, Math.min(1, (x - r.left) / r.width)); };
+    // volume here = only the music app's volume (Spotify / Apple Music / browser), not the whole PC
     const showVol = () => { S.volShownUntil = Date.now() + 2600; upd(); };
+    let volSendT = 0;
+    const sendAppVol = () => { const now = Date.now(); if (now - volSendT > 60) { volSendT = now; api.bridge({ cmd: 'app-volume', app: S.media.app, value: S.appVol }); } };
     el.addEventListener('wheel', (e) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) return;
       e.preventDefault();
-      S.volume = Math.max(0, Math.min(1, S.volume - Math.sign(e.deltaY) * 0.04));
-      S.volSetAt = Date.now();
-      api.bridge({ cmd: 'volume', value: S.volume });
+      if (S.appVol == null) S.appVol = 1;
+      S.appVol = Math.max(0, Math.min(1, S.appVol - Math.sign(e.deltaY) * 0.04));
+      sendAppVol();
       showVol();
     }, { passive: false });
-    const setVol = (e) => { S.volume = fracAt(e.clientX); S.volSetAt = Date.now(); api.bridge({ cmd: 'volume', value: S.volume }); showVol(); };
+    const setVol = (e) => { S.appVol = fracAt(e.clientX); sendAppVol(); showVol(); };
+    if (S.media && S.media.app) api.bridge({ cmd: 'app-volume', app: S.media.app });
     vbar.addEventListener('pointerdown', (e) => { e.stopPropagation(); vdrag = true; vbar.setPointerCapture(e.pointerId); S.pinned++; setVol(e); });
     vbar.addEventListener('pointermove', (e) => { if (vdrag) setVol(e); });
     vbar.addEventListener('pointerup', () => { vdrag = false; S.pinned = Math.max(0, S.pinned - 1); });
@@ -1554,16 +1806,57 @@
       el.querySelector('.el').textContent = fmt(pos);
       el.querySelector('.tot').textContent = m.duration ? fmt(m.duration) : '--:--';
       el.querySelector('.progress .fill').style.width = `${m.duration ? (pos / m.duration) * 100 : 0}%`;
-      const wantVol = Date.now() < S.volShownUntil || vdrag;
+      const wantVol = S.appVolOpen || Date.now() < S.volShownUntil || vdrag;
+      el.querySelector('.spk').classList.toggle('on', !!S.appVolOpen);
+      el.querySelector('.srcname').textContent = appName(m);
       if (wantVol !== volVisible) {
         volVisible = wantVol;
         if (wantVol) { vrow.style.display = ''; requestAnimationFrame(() => vrow.classList.remove('hide')); }
         else { vrow.classList.add('hide'); setTimeout(() => { if (!volVisible) vrow.style.display = 'none'; }, 280); }
       }
-      vbar.querySelector('.fill').style.width = `${S.volume * 100}%`;
+      const av = S.appVol == null ? null : S.appVol;
+      vbar.querySelector('.fill').style.width = `${(av == null ? 1 : av) * 100}%`;
+      el.querySelector('.vpct').textContent = av == null ? '—' : `${Math.round(av * 100)}%`;
     }
     return { w: 470, width: () => (lyricsShown() ? 680 : 470), el, update: upd };
   }
+  // ---- AI agents: everything that is working, waiting on you, or just finished
+  function pageAgents() {
+    const el = h(`<div class="page agpage"><div class="aghead"><span class="t">AI Agents</span><span class="cnt"></span><button class="pill-btn clr" style="display:none">Clear finished</button></div><div class="aglist"></div></div>`);
+    const list = el.querySelector('.aglist');
+    const rank = (x) => (x.state === 'waiting' ? 0 : x.state === 'editing' ? 1 : 2);
+    const row = (x) => `<div class="agrow st-${x.state}" data-k="${x.key}">${agentIcon(x.key, 30)}
+      <div class="grow" style="min-width:0"><div class="agn">${esc(x.name || agentMeta(x.key).name)}</div><div class="agd ellipsis">${esc(x.detail || (x.state === 'done' ? 'Finished' : x.state === 'waiting' ? 'Needs your input' : 'Working…'))}</div></div>
+      <div class="agst">${x.state === 'editing' ? agentBars(agentMeta(x.key).color) : x.state === 'waiting' ? '<span class="agpill ap-wait">Needs input</span>' : '<span class="agpill ap-done">Done</span>'}<span class="agtime tabular"></span></div></div>`;
+    let sig = null;
+    function upd() {
+      const arr = Object.values(S.agents || {}).sort((p, q) => rank(p) - rank(q) || q.updated - p.updated);
+      const s2 = arr.map((x) => `${x.key}:${x.state}:${x.detail || ''}:${S.agentIcons[x.key] ? 1 : 0}`).join('|');
+      if (s2 !== sig) {
+        sig = s2;
+        list.innerHTML = arr.length ? arr.map(row).join('')
+          : `<div class="agempty"><span class="spark">${I.sparkle(18)}</span><b>No agents running</b><span>Claude, Codex, Copilot, ChatGPT and others appear here while they work</span></div>`;
+        el.querySelector('.clr').style.display = arr.some((x) => x.state === 'done') ? '' : 'none';
+      }
+      list.querySelectorAll('[data-k]').forEach((r) => {
+        const x = S.agents[r.dataset.k];
+        if (!x) return;
+        const t = x.state === 'done' ? `worked ${fmtDur(x.took || 0)}` : fmtDur((Date.now() - x.since) / 1000);
+        const tm = r.querySelector('.agtime');
+        if (tm.textContent !== t) tm.textContent = t;
+      });
+      const n = arr.filter((x) => x.state !== 'done').length;
+      el.querySelector('.cnt').textContent = n ? `${n} working` : '';
+    }
+    el.querySelector('.clr').addEventListener('click', (e) => {
+      e.stopPropagation();
+      for (const [k, x] of Object.entries(S.agents)) if (x.state === 'done') delete S.agents[k];
+      upd();
+    });
+    upd();
+    return { w: 470, el, update: upd };
+  }
+
   function pageMusicEmpty(glassy) {
     const lm = S.lastMedia;
     const el = h(`<div class="page"><div class="player ${glassy ? 'glassy' : ''}" style="padding-top:6px">
@@ -2146,6 +2439,8 @@
     } else if (kind === 'volume' && S.transient && S.transient.kind === 'volume') {
       S.transient.until = Date.now() + ms;
     } else {
+      // same kind again (Wi-Fi off → on, another Bluetooth device…): re-mount so the new content shows
+      if (S.transient && S.transient.kind === kind && current && current.key === `t:${kind}`) current.key = `t:${kind}:prev`;
       S.transient = { kind, data: kind === 'notif' ? [data] : data, until: ms ? Date.now() + ms : Infinity };
     }
     S.expanded = false;
@@ -2155,12 +2450,37 @@
     if (S.keepOpen) return; S.expanded = false; S.hover = false; expandedByShortcut = false; render(); }
 
   // ------------------------------------------------------------------ battery
+  let powerFromBridge = false;
+  let lowWarned = new Set();
+  function onPower(p) {
+    const prev = S.battery; powerFromBridge = true;
+    S.battery = { level: p.level, charging: p.charging, saver: !!p.saver };
+    if (!prev) return;
+    if (prev.saver !== undefined && !!p.saver !== !!prev.saver && C().radioPopups !== false) {
+      showTransient('radio', { kind: 'saver', on: !!p.saver, level: p.level }, 3200);
+      if (p.charging === prev.charging) return;
+    }
+    const bc = C().battery || {};
+    if (p.charging !== prev.charging) {
+      if (p.charging) { lowWarned = new Set(); if (bc.chargingAnimation !== false) showTransient('charge', S.battery, 4200); }
+      else if (bc.unplugAlert !== false) {
+        showTransient('unplug', S.battery, 3400);
+        if (p.level * 100 <= (bc.lowAt || 20)) setTimeout(() => showTransient('low', S.battery, 6000), 3600);
+      }
+    } else if (!p.charging) {
+      const pct = Math.round(p.level * 100);
+      for (const th of [bc.lowAt || 20, bc.criticalAt || 10]) {
+        if (pct <= th && !lowWarned.has(th)) { lowWarned.add(th); showTransient('low', S.battery, 7000); }
+      }
+    }
+  }
   if (navigator.getBattery) {
     navigator.getBattery().then((b) => {
       const snap = () => ({ level: b.level, charging: b.charging });
-      S.battery = snap();
+      if (!powerFromBridge) S.battery = snap();
       let warned = new Set();
       b.addEventListener('chargingchange', () => {
+        if (powerFromBridge) return;
         S.battery = snap();
         const bc = C().battery || {};
         if (b.charging) { warned = new Set(); if (bc.chargingAnimation !== false) showTransient('charge', S.battery, 3600); }
@@ -2170,6 +2490,7 @@
         }
       });
       b.addEventListener('levelchange', () => {
+        if (powerFromBridge) return;
         S.battery = snap();
         const bc = C().battery || {};
         if (b.charging) return;
@@ -2183,7 +2504,7 @@
 
   // ------------------------------------------------------------------ ticker
   // adaptive ticker: 4x/s while something is on screen, 1x/s when the island is just a line or pill
-  const busy = () => !!(S.transient || S.expanded || S.hover || S.timers.length || S.call || S.pinned || (S.agent && S.agent.state === 'editing'));
+  const busy = () => !!(S.welcome || S.transient || S.expanded || S.hover || S.timers.length || S.call || S.pinned || (S.agent && S.agent.state === 'editing'));
   setTimeout(function tickLoop() { setTimeout(tickLoop, busy() ? 250 : 1000); (() => {
     const now = Date.now();
     for (const t of [...S.timers]) {
@@ -2204,7 +2525,7 @@
     }
     const w = C().water || {};
     if (w.enabled && now - S.lastWater > (w.everyMinutes || 60) * 60000 && !S.transient) { S.lastWater = now; showTransient('water', null, 15000); }
-    if (S.agent && S.agent.state === 'done' && now - S.agent.at > 4000) S.agent = null;
+    for (const [k, x] of Object.entries(S.agents)) if (x.state === 'done' && now - x.at > 30 * 60e3) delete S.agents[k];
     if (expandedByShortcut && !S.keepOpen && !insideIsland && now - expandedAt > 8000 && S.pinned === 0) collapse();
     if (S.transient && now > S.transient.until && !insideIsland) S.transient = null;
     if (isPlaying() && current && (current.key === 'lyricCompact' || current.key === 'mediaHover' || current.key === 'page:music')) { /* lyric updates run on the fast loop */ }
@@ -2270,7 +2591,7 @@
     if (!S.expanded) {
       S.expanded = true;
       const live = liveKind();
-      S.page = live === 'media' ? 'music' : live === 'timer' ? 'timer' : 'home';
+      S.page = live === 'media' ? 'music' : live === 'timer' ? 'timer' : live === 'agent' ? 'agents' : 'home';
       render();
     }
   });
@@ -2349,36 +2670,66 @@
         // 'toast-gone' is ignored: the call watcher decides whether it was answered or ended
         break;
       }
+      case 'app-volume': if (msg.value != null) S.appVol = msg.value; if (current && current.key === 'page:music') current.update(); return;
       case 'agent-notif': {
         const d = msg.data;
         const key = agentKeyFrom({ agent: d.agent, app: d.app });
         const wait = /approv|permission|input|waiting|needs/i.test(`${d.title} ${d.body}`);
+        { const pr = S.agents[key], lv = pr && pr.state !== 'done', nw = Date.now();
+          S.agents[key] = { key, name: agentMeta(key).name, updated: nw, since: lv ? pr.since : nw, at: nw, state: wait ? 'waiting' : 'done',
+            took: lv ? (nw - pr.since) / 1000 : 0, detail: [d.title, d.body].filter(Boolean).join(' — ') };
+          syncAgent(); }
         showTransient(wait ? 'agentWait' : 'agentDone', { key, app: d.app, icon: d.icon, headline: wait ? 'Needs your input' : 'Job is done', detail: [d.title, d.body].filter(Boolean).join(' — ') }, wait ? 15000 : 6000);
         return;
       }
       case 'bt':
         if (C().bluetooth && C().bluetooth.popups !== false) showTransient('bt', msg.data, 4200);
         return;
-      case 'bt-list': S.btDevices = msg.data || []; break;
+      case 'bt-list': {
+        S.btDevices = msg.data || [];
+        // a connect pop-up that went up before Windows knew the battery gets it as soon as it arrives
+        const t = S.transient;
+        if (t && t.kind === 'bt' && t.data.battery == null) {
+          const d = S.btDevices.find((x) => x.name === t.data.name && x.battery != null);
+          if (d) showTransient('bt', { ...t.data, battery: d.battery }, Math.max(2500, t.until - Date.now()));
+        }
+        break;
+      }
+      case 'power': onPower(msg.data); break;
+      case 'radio': if (C().radioPopups !== false) showTransient('radio', msg.data, msg.data.kind === 'airplane' ? 3800 : 3200); break;
       default: break;
     }
     render();
   });
-  api.on('agent', (a) => {
+  S.agents = {};
+  function syncAgent() {
+    const w = Object.values(S.agents).filter((x) => x.state === 'editing').sort((p, q) => q.updated - p.updated);
+    S.agent = w[0] || null;
+  }
+  function agentEvent(a) {
     if (C().agentStatus === false) return;
     const key = agentKeyFrom(a);
     const st = String(a.state || '').toLowerCase();
+    const prev = S.agents[key];
+    const live = prev && prev.state !== 'done';
+    const now = Date.now();
+    const name = agentMeta(key).name;
+    const base = { key, name, updated: now, since: live ? prev.since : now };
     if (/^(editing|working|running|thinking|start)/.test(st)) {
-      S.agent = { ...a, key, state: 'editing', since: S.agent && S.agent.state === 'editing' && S.agent.key === key ? S.agent.since : Date.now() };
+      S.agents[key] = { ...base, state: 'editing', detail: a.detail || (live ? prev.detail : '') };
     } else if (/^(waiting|input|permission|approval|ask)/.test(st)) {
+      S.agents[key] = { ...base, state: 'waiting', detail: a.detail || a.title || (live ? prev.detail : '') };
       showTransient('agentWait', { key, detail: a.detail || a.title }, 15000);
     } else if (/^(done|stop|complete|finished|success)/.test(st)) {
-      const took = S.agent ? (Date.now() - S.agent.since) / 1000 : 0;
-      S.agent = null;
-      showTransient('agentDone', { key, app: agentMeta(key).name, detail: a.detail || (a.title && a.title !== agentMeta(key).name ? a.title : ''), took }, 5000);
-    } else S.agent = null;
+      const took = live ? (now - prev.since) / 1000 : 0;
+      const detail = a.detail || (a.title && a.title !== name ? a.title : '') || (prev ? prev.detail : '');
+      S.agents[key] = { ...base, state: 'done', took, at: now, detail };
+      showTransient('agentDone', { key, app: name, detail, took }, 5000);
+    } else delete S.agents[key];
+    syncAgent();
     render();
-  });
+  }
+  api.on('agent', agentEvent);
   api.on('calendar', (events) => { S.calendar = events || []; render(); });
   api.on('config', (cfg) => {
     const prev = S.config;
@@ -2407,6 +2758,14 @@
   }
   function demo(kind) {
     const lvl = S.battery ? S.battery.level : 0.87;
+    if (kind.startsWith('probe:')) {   // diagnostics: what element sits at a window point
+      const [, x, y] = kind.split(':');
+      const n = document.elementFromPoint(+x, +y);
+      const v = n && n.closest('.view');
+      const r = $island.getBoundingClientRect();
+      api.diagPointer({ x: +x, y: +y, target: n ? `${n.tagName}.${n.className && n.className.baseVal === undefined ? n.className : ''}` : 'none', view: v ? v.className : '-', island: `${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`, key: current && current.key, focused: false });
+      return;
+    }
     if (kind.startsWith('page:')) { S.transient = null; S.expanded = true; expandedByShortcut = true; expandedAt = Date.now(); S.page = kind.slice(5); render(); return; }
     if (kind.startsWith('click-day:')) { const d = [...document.querySelectorAll('.cal2 .g .d[data-day]')].reverse().find((x) => x.dataset.day === kind.slice(10)); if (d) d.click(); return; }
     if (kind === 'collapse') { S.transient = null; collapse(); return; }
@@ -2454,13 +2813,34 @@
       case 'low': showTransient('low', { level: 0.2, charging: false }, 7000); break;
       case 'bt': showTransient('bt', { state: 'connected', name: (S.btDevices[0] && S.btDevices[0].name) || 'JBL TUNE760NC', battery: (S.btDevices[0] && S.btDevices[0].battery) ?? 40, kind: (S.btDevices[0] && S.btDevices[0].kind) || 'headphones' }, 4200); break;
       case 'volume': showTransient('volume', null, 2200); break;
+      case 'nowplaying': showTransient('nowPlaying', null, 4200); break;
       case 'brightness': showTransient('brightness', null, 2200); break;
       case 'quit': showTransient('confirmQuit', { app: '', name: playerName(), source: (S.media || S.lastMedia || {}).source }, 15000); break;
       case 'water': showTransient('water', null, 15000); break;
+      case 'welcome': startWelcome(); break;
+      case 'welcome-tour': startWelcome(); setTimeout(() => { const w = document.querySelector('.welcome'); if (w && w.__tour) w.__tour(0); }, 200); break;
+      case 'welcome-tour-next': { const w = document.querySelector('.welcome'); if (w) w.querySelector('.tr-next').click(); break; }
       case 'agent':
-        S.agent = { state: 'editing', title: 'Claude Code', detail: 'Shipping the new landing page', since: Date.now() }; render();
-        setTimeout(() => { const took = (Date.now() - S.agent.since) / 1000; S.agent = { state: 'done', title: 'Claude Code', since: Date.now(), at: Date.now() }; showTransient('agentDone', { title: 'Claude Code', took }, 4000); }, 6000);
+        agentEvent({ agent: 'claude', state: 'working', detail: 'Shipping the new landing page' });
+        setTimeout(() => agentEvent({ agent: 'claude', state: 'done', detail: 'Landing page shipped' }), 6000);
         break;
+      case 'agents':
+        agentEvent({ agent: 'claude', state: 'working', detail: 'Refactoring the island renderer' });
+        agentEvent({ agent: 'chatgpt', state: 'working', detail: 'Drafting release notes' });
+        agentEvent({ agent: 'gemini', state: 'working', detail: 'Summarising the bug reports' });
+        agentEvent({ agent: 'cursor', state: 'done', detail: 'Fixed the settings layout' });
+        agentEvent({ agent: 'codex', state: 'working', detail: 'Writing unit tests' });
+        agentEvent({ agent: 'copilot', state: 'waiting', detail: 'Approve running npm install?' });
+        S.transient = null;
+        break;
+      case 'wifi-off': showTransient('radio', { kind: 'wifi', on: false }, 3200); break;
+      case 'wifi-on': showTransient('radio', { kind: 'wifi', on: true }, 3200); break;
+      case 'bt-off': showTransient('radio', { kind: 'bluetooth', on: false }, 3200); break;
+      case 'bt-on': showTransient('radio', { kind: 'bluetooth', on: true }, 3200); break;
+      case 'airplane-on': showTransient('radio', { kind: 'airplane', on: true }, 3800); break;
+      case 'airplane-off': showTransient('radio', { kind: 'airplane', on: false }, 3800); break;
+      case 'saver-on': showTransient('radio', { kind: 'saver', on: true }, 3200); break;
+      case 'saver-off': showTransient('radio', { kind: 'saver', on: false }, 3200); break;
       default: break;
     }
   }
@@ -2478,8 +2858,12 @@
     applyConfigVars();
     await refreshGeometry();
     api.bridge({ cmd: 'refresh' });   // ask for the current track again, album art included
+    ['claude', 'chatgpt', 'copilot', 'codex', 'cursor', 'gemini'].forEach((k) => agentIcon(k));   // warm the agent icons
     render();
     window.addEventListener('resize', refreshGeometry);
+    // tell the main process once the first real frame is on screen, so the window can fade in cleanly
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (api.ready) api.ready(); }));
+    if (!C().welcomed) setTimeout(startWelcome, 1100);   // first run: say hello
   })();
   function deepMerge(a, b) {
     for (const k of Object.keys(b || {})) {

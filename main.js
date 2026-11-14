@@ -1,4 +1,5 @@
-// Dynamic Island for Windows — main process
+// NotchVault — main process
+// Made by Crazified Studios · https://crazifiedstudios.com
 const {
   app, BrowserWindow, ipcMain, screen, Tray, Menu, nativeImage, shell, session,
   desktopCapturer, globalShortcut, nativeTheme,
@@ -9,6 +10,15 @@ const fs = require('fs');
 const http = require('http');
 const { parseICS, expandEvents } = require('./calendar');
 
+const APP_NAME = 'NotchVault';
+const APP_MAKER = 'Crazified Studios';
+const APP_SITE = 'https://crazifiedstudios.com';
+// keep the existing profile folder (to-dos, alarms, glass permission) after the rename
+// development keeps its existing profile folder; the installed app uses %APPDATA%/NotchVault
+if (!app.isPackaged) app.setPath('userData', path.join(app.getPath('appData'), 'dynamic-island-windows'));
+app.setName(APP_NAME);
+if (process.platform === 'win32') app.setAppUserModelId('com.crazifiedstudios.notchvault');
+
 // lighter Electron: small JS heap, no spare renderer process, no spell-check dictionaries
 app.commandLine.appendSwitch('js-flags', '--max-old-space-size=96');
 app.commandLine.appendSwitch('disable-features', 'SpareRendererForSitePerProcess,MediaRouter,Translate,AutofillServerCommunication');
@@ -17,8 +27,11 @@ app.commandLine.appendSwitch('in-process-gpu');            // one process less (
 
 const WIN_W = 1100;
 const WIN_H = 640;
-const CONFIG_PATH = path.join(__dirname, 'config.json');
-const DATA_DIR = path.join(__dirname, 'data');
+// installed: settings and data live in %APPDATA%/NotchVault (Program Files is read-only); dev: next to the code
+const HOME_DIR = app.isPackaged ? app.getPath('userData') : __dirname;
+const CONFIG_PATH = path.join(HOME_DIR, 'config.json');
+const DATA_DIR = path.join(HOME_DIR, 'data');
+const LOGIN_ARGS = app.isPackaged ? [] : [path.resolve(__dirname)];
 const SHELF_PATH = path.join(DATA_DIR, 'shelf.json');
 
 let win = null;
@@ -53,6 +66,8 @@ const DEFAULT_CONFIG = {
   clipboard: { enabled: true, limit: 40 },
   shortcut: 'Control+Alt+T',
   agentStatus: true,
+  radioPopups: true,
+  welcomed: false,
   display: 'primary',
 };
 
@@ -102,8 +117,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: WIN_W, height: WIN_H, frame: false, transparent: true, resizable: false, movable: false,
     minimizable: false, maximizable: false, fullscreenable: false, skipTaskbar: true, hasShadow: false,
-    alwaysOnTop: true, show: false, focusable: false, backgroundColor: '#00000000',
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false, enableWebSQL: false },
+    alwaysOnTop: true, show: false, focusable: false, backgroundColor: '#00000000', paintWhenInitiallyHidden: true,
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false, enableWebSQL: false, zoomFactor: Number(config.size) || 1 },
   });
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true);
@@ -111,7 +126,25 @@ function createWindow() {
   placeWindow();
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
   win.webContents.on('did-finish-load', () => win.webContents.setZoomFactor(Number(config.size) || 1));
-  win.once('ready-to-show', () => win.showInactive());
+  // No first-frame glitch: the window stays invisible until the island has rendered its first
+  // real frame, then fades in. (Showing on ready-to-show flashed a half-built frame on first launch.)
+  win.setOpacity(0);
+  let revealed = false;
+  const reveal = () => {
+    if (revealed || !win || win.isDestroyed()) return;
+    revealed = true;
+    win.showInactive();
+    const t0 = Date.now();
+    const step = () => {
+      if (!win || win.isDestroyed()) return;
+      const k = Math.min(1, (Date.now() - t0) / 260);
+      win.setOpacity(1 - Math.pow(1 - k, 3));
+      if (k < 1) setTimeout(step, 16);
+    };
+    setTimeout(step, 16);
+  };
+  ipcMain.once('island-ready', () => setTimeout(reveal, 30));
+  setTimeout(reveal, 4000);   // never stay hidden if the renderer is slow
   win.on('close', (e) => { if (!quitting) e.preventDefault(); });
   setInterval(() => { if (win && !win.isDestroyed()) win.setAlwaysOnTop(true, 'screen-saver'); }, 4000);
   startCursorTracking();
@@ -153,8 +186,15 @@ function startCursorTracking() {
 
 // ---------------------------------------------------------------- python bridge
 function startBridge() {
-  const script = path.join(__dirname, 'bridge', 'bridge.py');
-  bridge = spawn(config.python || 'python', ['-u', '-W', 'ignore', script], { cwd: path.join(__dirname, 'bridge'), windowsHide: true });
+  const env = { ...process.env, NOTCHVAULT_DATA: DATA_DIR, PYTHONIOENCODING: 'utf-8' };
+  if (app.isPackaged) {
+    // the installer ships the bridge frozen with PyInstaller, so users don't need Python
+    const dir = path.join(process.resourcesPath, 'bridge');
+    bridge = spawn(path.join(dir, 'bridge.exe'), [], { cwd: dir, windowsHide: true, env });
+  } else {
+    const script = path.join(__dirname, 'bridge', 'bridge.py');
+    bridge = spawn(config.python || 'python', ['-u', '-W', 'ignore', script], { cwd: path.join(__dirname, 'bridge'), windowsHide: true, env });
+  }
   let buf = '';
   bridge.stdout.setEncoding('utf8');
   bridge.stdout.on('data', (chunk) => {
@@ -265,7 +305,7 @@ async function fetchLyrics({ title, artist, album, duration }) {
   if (lyricsCache.has(key)) return lyricsCache.get(key);
   const clean = (s) => String(s || '').replace(/\s*[([](feat|with|from)[^)\]]*[)\]]/ig, '').trim();
   const firstArtist = String(artist || '').split(/,|&| x | feat\.? /i)[0].trim();
-  const headers = { 'User-Agent': 'DynamicIsland/1.0 (desktop lyrics)' };
+  const headers = { 'User-Agent': `${APP_NAME}/${app.getVersion()} (desktop lyrics)` };
   let result = { synced: [], plain: '' };
   const tries = [
     `https://lrclib.net/api/get?${new URLSearchParams({ track_name: title, artist_name: artist, album_name: album || '', duration: String(Math.round(duration || 0)) })}`,
@@ -442,8 +482,9 @@ function openSettings(section) {
     return;
   }
   settingsWin = new BrowserWindow({
+    icon: APP_ICON,
     width: 860, height: 600, minWidth: 720, minHeight: 480, show: false,
-    title: 'Island Settings', backgroundColor: '#1c1c1e', autoHideMenuBar: true,
+    title: `${APP_NAME} Settings`, backgroundColor: '#1c1c1e', autoHideMenuBar: true,
     titleBarStyle: 'hidden', titleBarOverlay: { color: '#1c1c1e', symbolColor: '#e5e5ea', height: 36 },
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, spellcheck: false },
   });
@@ -453,6 +494,16 @@ function openSettings(section) {
 }
 
 // ---------------------------------------------------------------- tray (lives in "Hidden icons")
+const ASSETS = path.join(__dirname, 'assets');
+const APP_ICON = path.join(ASSETS, 'notchvault.ico');
+function logoIcon() {
+  try {
+    const img = nativeImage.createFromPath(path.join(ASSETS, 'win-16.png'));
+    img.addRepresentation({ scaleFactor: 2, buffer: fs.readFileSync(path.join(ASSETS, 'win-32.png')) });
+    if (!img.isEmpty()) return img;
+  } catch {}
+  return trayIcon();
+}
 function trayIcon() {
   const s = 32;
   const buf = Buffer.alloc(s * s * 4);
@@ -466,13 +517,15 @@ function trayIcon() {
 
 function buildTray() {
   if (!tray) {
-    tray = new Tray(trayIcon());
-    tray.setToolTip('Island — click for settings');
+    tray = new Tray(logoIcon());
+    tray.setToolTip(`${APP_NAME} — click for settings`);
     tray.on('click', () => openSettings());
   }
-  const loginItem = app.getLoginItemSettings({ args: [path.resolve(__dirname)] });
+  const loginItem = app.getLoginItemSettings({ args: LOGIN_ARGS });
   tray.setContextMenu(Menu.buildFromTemplate([
+    { label: APP_NAME, enabled: false },
     { label: 'Settings…', click: () => openSettings() },
+    { label: `About ${APP_NAME}`, click: () => openSettings('about') },
     { type: 'separator' },
     {
       label: 'Try it',
@@ -498,11 +551,11 @@ function buildTray() {
     },
     {
       label: 'Start with Windows', type: 'checkbox', checked: loginItem.openAtLogin,
-      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, path: process.execPath, args: [path.resolve(__dirname)] }),
+      click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, path: process.execPath, args: LOGIN_ARGS }),
     },
-    { label: 'Reload island', click: () => win && win.reload() },
+    { label: `Reload ${APP_NAME}`, click: () => win && win.reload() },
     { type: 'separator' },
-    { label: 'Quit', click: () => { quitting = true; app.quit(); } },
+    { label: `Quit ${APP_NAME}`, click: () => { quitting = true; app.quit(); } },
   ]));
 }
 
@@ -517,6 +570,7 @@ let lastPointer = null;
 ipcMain.on('diag-pointer', (_e, d) => { lastPointer = { ...d, at: Date.now() }; });
 ipcMain.on('island-rect', (_e, r) => { islandRect = r; });
 ipcMain.on('hold-mouse', (_e, on) => { holdMouse = !!on; });
+ipcMain.handle('app-info', () => ({ name: APP_NAME, version: app.getVersion(), maker: APP_MAKER, site: APP_SITE }));
 ipcMain.on('mouse', () => {}); // legacy: the cursor poller owns click-through now
 ipcMain.on('focus', (_e, want) => {
   if (!win) return;
@@ -545,8 +599,8 @@ ipcMain.handle('calendar-status', () => calendarStatus);
 ipcMain.handle('refresh-calendar', async () => { await refreshCalendar(); return calendarStatus; });
 ipcMain.handle('bt-list', () => btList);
 ipcMain.handle('login-item', (_e, on) => {
-  if (typeof on === 'boolean') app.setLoginItemSettings({ openAtLogin: on, path: process.execPath, args: [path.resolve(__dirname)] });
-  return app.getLoginItemSettings({ args: [path.resolve(__dirname)] }).openAtLogin;
+  if (typeof on === 'boolean') app.setLoginItemSettings({ openAtLogin: on, path: process.execPath, args: LOGIN_ARGS });
+  return app.getLoginItemSettings({ args: LOGIN_ARGS }).openAtLogin;
 });
 ipcMain.on('open-url', (_e, url) => { if (/^https?:|^zoommtg:|^msteams:/i.test(url)) shell.openExternal(url); });
 ipcMain.on('open-calendar', () => shell.openExternal('outlookcal:').catch(() => {}));

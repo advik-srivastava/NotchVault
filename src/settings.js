@@ -1,4 +1,4 @@
-/* Island control panel */
+/* NotchVault control panel · Crazified Studios */
 (() => {
   const api = window.islandAPI || {
     getConfig: async () => JSON.parse(localStorage.getItem('cfg') || '{}'),
@@ -25,6 +25,7 @@
     focus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><circle cx="12" cy="13" r="8"/><path d="M12 13V9"/></svg>',
     shelf: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h6l2 2h8a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1z"/></svg>',
     agent: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1.3 15h-2.6v-6.5h2.6zM12 9a1.6 1.6 0 1 1 0-3.2A1.6 1.6 0 0 1 12 9z"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.6c0-1.2 1.3-1.9 2.3-1.3l11 6.9c1 .6 1 2 0 2.6l-11 6.9C8.3 20.3 7 19.6 7 18.4z"/></svg>',
   };
   const SECTIONS = [
@@ -37,8 +38,9 @@
     ['hud', 'HUD and popups', '#0a84ff', SVG.hud],
     ['focus', 'Focus and water', '#bf5af2', SVG.focus],
     ['clipboard', 'Clipboard', '#ffd60a', SVG.shelf],
-    ['agent', 'AI agent status', '#ff6b35', SVG.agent],
+    ['agent', 'AI agents', '#ff6b35', SVG.agent],
     ['try', 'Try it', '#64d2ff', SVG.play],
+    ['about', 'About NotchVault', '#636366', SVG.info],
   ];
   let current = (location.hash || '#general').slice(1);
 
@@ -129,6 +131,7 @@
   V.hud = async () => `<h1>HUD and popups</h1><div class="card">
       ${sw('hud.volume', 'Volume HUD', 'Changing the system volume shows a bar in the island')}
       ${sw('hud.brightness', 'Brightness HUD', 'Changing the screen brightness shows a bar you can drag')}
+      ${sw('radioPopups', 'Wi-Fi, Bluetooth, airplane mode and battery saver', 'A pop-up when you turn any of them on or off')}
     </div>`;
   V.focus = async () => `<h1>Focus and water</h1>
     <h2>Pomodoro</h2><div class="card">${num('focus.minutes', 'Focus length (min)', 5, 120)}${num('focus.breakMinutes', 'Break length (min)', 1, 60)}</div>
@@ -138,23 +141,47 @@
       ${num('clipboard.limit', 'Items to keep', 5, 200)}
       <div class="row"><div class="lbl"><div class="t">Clear history</div><div class="d">Pinned items are kept</div></div><button class="btn red" id="clearclips">Clear</button></div>
     </div>`;
-  V.agent = async () => `<h1>AI agent status</h1><div class="card">
-      ${sw('agentStatus', 'Show agent status', 'Shows “Editing…” / “Done” from Claude Code or any tool that posts to the island')}
+  V.agent = async () => `<h1>AI agents</h1><div class="card">
+      ${sw('agentStatus', 'Show AI agent alerts', 'Working, needs-your-input and job-done pop-ups with each agent’s icon')}
     </div>
-    <h2>How to connect</h2><div class="card"><div class="row"><div class="lbl"><div class="d">Anything can send <code>POST http://127.0.0.1:47823/agent?state=editing&amp;title=Claude+Code</code> (states: editing, done, idle). For Claude Code, add hooks like these to <code>~/.claude/settings.json</code>:</div></div></div>
+    <h2>Picked up automatically</h2><div class="card"><div class="row"><div class="lbl"><div class="d">Notifications from the <b>Claude</b>, <b>ChatGPT</b>, <b>Copilot</b>, <b>Cursor</b> and <b>Gemini</b> apps become agent pop-ups with the app’s real icon — nothing to set up.</div></div></div></div>
+    <h2>Claude Code (terminal) — add to ~/.claude/settings.json</h2><div class="card">
 <pre>"hooks": {
   "UserPromptSubmit": [{ "hooks": [{ "type": "command",
-    "command": "curl -s -X POST \\"http://127.0.0.1:47823/agent?state=editing&amp;title=Claude+Code\\"" }] }],
+    "command": "curl -s -X POST \\"http://127.0.0.1:47823/agent?agent=claude&amp;state=working\\"" }] }],
+  "Notification": [{ "hooks": [{ "type": "command",
+    "command": "curl -s -X POST \\"http://127.0.0.1:47823/agent?agent=claude&amp;state=waiting\\"" }] }],
   "Stop": [{ "hooks": [{ "type": "command",
-    "command": "curl -s -X POST \\"http://127.0.0.1:47823/agent?state=done&amp;title=Claude+Code\\"" }] }]
-}</pre></div>`;
+    "command": "curl -s -X POST \\"http://127.0.0.1:47823/agent?agent=claude&amp;state=done\\"" }] }]
+}</pre></div>
+    <h2>Codex CLI — add to ~/.codex/config.toml</h2><div class="card">
+<pre>notify = ["curl", "-s", "-X", "POST", "http://127.0.0.1:47823/agent?agent=codex&amp;state=done"]</pre></div>
+    <h2>Anything else</h2><div class="card"><div class="row"><div class="lbl"><div class="d">Send <code>POST http://127.0.0.1:47823/agent?agent=NAME&amp;state=working|waiting|done&amp;detail=TEXT</code> — agent can be claude, codex, copilot, chatgpt, cursor, gemini.</div></div></div></div>`;
   V.try = async () => `<h1>Try it</h1><div class="card"><div class="demo-grid">
     ${[['music', 'Music'], ['notif', 'Notification'], ['call', 'Incoming call'], ['calendar', 'Calendar alert'], ['timer', '1 min timer'], ['battery', 'Charging'], ['unplug', 'Charger removed'], ['low', 'Low battery'], ['bt', 'Bluetooth'], ['volume', 'Volume HUD'], ['brightness', 'Brightness HUD'], ['quit', 'Quit confirmation'],['water', 'Water'], ['agent', 'Agent status']].map(([k, l]) => `<button class="btn" data-demo="${k}">${l}</button>`).join('')}
   </div></div>`;
 
+  const INFO = { name: 'NotchVault', version: '1.0.0', maker: 'Crazified Studios', site: 'https://crazifiedstudios.com' };
+  const LOGO = '<img class="nvlogo" src="../assets/logo.svg" alt="NotchVault">';
+  V.about = async () => {
+    const i = { ...INFO, ...((api.appInfo && await api.appInfo().catch(() => null)) || {}) };
+    return `<div class="about">
+      ${LOGO}
+      <div class="aname">${esc(i.name)}</div>
+      <div class="aver">Version ${esc(i.version)}</div>
+      <div class="atag">A live, Dynamic-Island-style notch for Windows</div>
+      <div class="card arows">
+        <div class="row"><div class="lbl"><div class="t">Made by</div></div><div class="aval">${esc(i.maker)}</div></div>
+        <div class="row"><div class="lbl"><div class="t">Website</div></div><a class="alink" data-url="${esc(i.site)}">${esc(i.site.replace(/^https?:\/\//, ''))} ↗</a></div>
+      </div>
+      <button class="btn" data-demo="welcome" style="margin-top:16px">Replay welcome</button>
+      <div class="acopy">© ${new Date().getFullYear()} ${esc(i.maker)}. All rights reserved.</div>
+    </div>`;
+  };
+
   // ---------------------------------------------------------------- render + events
   function nav() {
-    $nav.innerHTML = SECTIONS.map(([id, label, color, svg]) => `<div class="item ${id === current ? 'on' : ''}" data-sec="${id}"><span class="ico" style="background:${color}">${svg}</span>${label}</div>`).join('');
+    $nav.innerHTML = `<div class="brand" data-sec="about">${LOGO}<div><b>NotchVault</b><span>by Crazified Studios</span></div></div>` + SECTIONS.map(([id, label, color, svg]) => `<div class="item ${id === current ? 'on' : ''}" data-sec="${id}"><span class="ico" style="background:${color}">${svg}</span>${label}</div>`).join('');
   }
   async function show(id) {
     current = id;
@@ -172,6 +199,8 @@
   $nav.addEventListener('click', (e) => { const it = e.target.closest('[data-sec]'); if (it) show(it.dataset.sec); });
   $main.addEventListener('click', async (e) => {
     const t = e.target;
+    const u = t.closest('[data-url]');
+    if (u) { if (api.openUrl) api.openUrl(u.dataset.url); else window.open(u.dataset.url); return; }
     const s = t.closest('[data-sw]');
     if (s) { s.classList.toggle('on'); await set(s.dataset.sw, s.classList.contains('on')); return; }
     const b = t.closest('.seg button');

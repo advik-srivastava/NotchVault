@@ -65,3 +65,19 @@ code, pre { font-family: "Cascadia Code", Consolas, monospace; font-size: 11.5px
 pre { background: #111; border-radius: 8px; padding: 10px 12px; color: #d1d1d6; white-space: pre-wrap; user-select: text; margin: 8px 14px 14px; }
 .section { animation: fade .25s ease both; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* brand + About */
+.nvlogo { width: 30px; height: 30px; flex: none; display: block; filter: drop-shadow(0 2px 5px rgba(0,0,0,.45)); }
+aside .brand { display: flex; align-items: center; gap: 10px; padding: 6px 8px 12px; margin-bottom: 6px; border-bottom: 1px solid var(--line); cursor: default; }
+aside .brand b { display: block; font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -.1px; }
+aside .brand span { display: block; font-size: 11px; color: var(--sub); }
+.about { display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 26px; }
+.about .nvlogo { width: 112px; height: 112px; filter: drop-shadow(0 10px 24px rgba(138,92,255,.35)); }
+.about .aname { font-size: 26px; font-weight: 700; margin-top: 16px; letter-spacing: -.3px; }
+.about .aver { font-size: 12.5px; color: var(--sub); margin-top: 2px; }
+.about .atag { font-size: 13px; color: #d1d1d6; margin-top: 10px; }
+.about .arows { width: 100%; max-width: 420px; margin-top: 22px; text-align: left; }
+.about .aval { color: #d1d1d6; font-weight: 500; }
+.about .alink { color: var(--blue); font-weight: 500; cursor: pointer; text-decoration: none; }
+.about .alink:hover { text-decoration: underline; }
+.about .acopy { font-size: 11px; color: var(--sub); margin-top: 18px; }

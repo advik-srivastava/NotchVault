@@ -18,7 +18,8 @@ import unicodedata
 
 PKG = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Packages", "Microsoft.YourPhone_8wekyb3d8bbwe")
 TEMP_STATE = os.path.join(PKG, "TempState")
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+DATA_DIR = os.environ.get("NOTCHVAULT_DATA") or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
 LOG_PATH = os.path.join(DATA_DIR, "phonelink-calls.log")
 
 

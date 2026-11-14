@@ -5,6 +5,7 @@ const CHANNELS = ['bridge', 'calendar', 'demo', 'config', 'cursor', 'agent', 'to
 contextBridge.exposeInMainWorld('islandAPI', {
   setMouse: () => {},
   setRect: (r) => ipcRenderer.send('island-rect', r),
+  ready: () => ipcRenderer.send('island-ready'),
   holdMouse: (on) => ipcRenderer.send('hold-mouse', on),
   focus: (want) => ipcRenderer.send('focus', want),
   focusable: (on) => ipcRenderer.send('focusable', on),
@@ -29,6 +30,7 @@ contextBridge.exposeInMainWorld('islandAPI', {
   refreshCalendar: () => ipcRenderer.invoke('refresh-calendar'),
   btList: () => ipcRenderer.invoke('bt-list'),
   loginItem: (on) => ipcRenderer.invoke('login-item', on),
+  appInfo: () => ipcRenderer.invoke('app-info'),
   lyrics: (q) => ipcRenderer.invoke('lyrics', q),
   agentIcon: (agent) => ipcRenderer.invoke('agent-icon', agent),
   clipList: () => ipcRenderer.invoke('clip-list'),
